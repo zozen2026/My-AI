@@ -45,7 +45,7 @@ module.exports = async function handler(req, res) {
         'Authorization': `Bearer ${activeKey}`
       },
       body: JSON.stringify({
-        model: 'llama3-70b-8192', // نموذج قوي ومستقر ومتاح حالياً
+        model: 'Qwen/Qwen3.8-27b', // استخدام النموذج المتاح في قائمتك الحالية
         messages: fullMessages,
         temperature: 0.6,
         max_tokens: 1500
