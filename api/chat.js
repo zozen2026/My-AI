@@ -26,15 +26,11 @@ module.exports = async function handler(req, res) {
 
   const activeKey = keys[Math.floor(Math.random() * keys.length)];
 
-  // تعليمات تجعل الذكاء الاصطناعي يدمج توليد الصور كروابط مباشرة في الرد
-  const systemInstructions = `أنت Zeno AI، مساعد ذكي ومبدع مطور حصرياً من قِبل استوديو NC. 
+  const systemInstructions = `أنت Zeno AI، مساعد ذكي تقني ومبتكر مطور حصرياً من قِبل استوديو NC. 
 قواعدك الأساسية:
-1. تحدث دائماً باللهجة العامية الدارجة والمريحة (عربي أو إنجليزي حسب لغة المستخدم).
+1. تحدث دائماً باللهجة العامية الدارجة والمريحة المناسبة للغة المستخدم.
 2. في البرمجة: ضع الأكواد داخل علامات الكود الثلاثية (\`\`\`).
-3. **توليد الصور:** إذا طلب المستخدم إنشاء أو توليد صورة، يجب أن تقوم بتأليف وصف إنجليزي دقيق للصورة، ثم تضعها مباشرة على شكل رابط صورة (Markdown) بهذه الطريقة تماماً: 
-   ![صورة مولدة](https://image.pollinations.ai/prompt/DESCRIPTION_HERE)
-   حيث تستبدل DESCRIPTION_HERE بالوصف الإنجليزي (بدون مسافات، استخدم الشرطات بين الكلمات مثل: \`a-futuristic-robot-in-space\`). ولا تضف أي نص آخر يشرح كيف تعمل الصورة، بل اعرضها مباشرة!
-4. إذا سألك أحد عن مطورك أجب بكل وضوح: "من طورني هو استوديو NC".`;
+3. إذا سألك أحد عن مطورك أجب بكل وضوح: "من طورني هو استوديو NC".`;
 
   const fullMessages = [
     { role: "system", content: systemInstructions },
@@ -49,7 +45,7 @@ module.exports = async function handler(req, res) {
         'Authorization': `Bearer ${activeKey}`
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant', // النموذج الأثبت والأسرع والمجاني بالكامل
         messages: fullMessages,
         temperature: 0.6,
         max_tokens: 1500
