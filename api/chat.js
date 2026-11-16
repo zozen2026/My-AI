@@ -10,14 +10,9 @@ module.exports = async function handler(req, res) {
     return res.status(403).json({ error: 'Access Denied: Invalid Origin' });
   }
 
-  const { messages, hasImage } = req.body;
+  const { messages } = req.body;
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'Invalid messages format' });
-  }
-
-  const lastMessage = messages[messages.length - 1]?.content || '';
-  if (!hasImage && typeof lastMessage === 'string' && lastMessage.length > 2000) {
-    return res.status(400).json({ error: 'Message is too long. Max 2000 characters.' });
   }
 
   const keys = Object.keys(process.env)
@@ -31,22 +26,20 @@ module.exports = async function handler(req, res) {
 
   const activeKey = keys[Math.floor(Math.random() * keys.length)];
 
-  const systemInstructions = `أنت Zeno AI، مساعد ذكي تقني مطور حصرياً من قِبل استوديو NC. 
+  // تعليمات تجعل الذكاء الاصطناعي يدمج توليد الصور كروابط مباشرة في الرد
+  const systemInstructions = `أنت Zeno AI، مساعد ذكي ومبدع مطور حصرياً من قِبل استوديو NC. 
 قواعدك الأساسية:
-1. تحدث دائماً باللهجة العامية الدارجة والمريحة المناسبة للغة المستخدم (مثلاً: عامية عربية سلسة وودودة إذا كلمك بالعربي، أو عامية إنجليزية/سلانغ طبيعية إذا كلمك بالإنجليزي).
-2. في الأسئلة البرمجية والتقنية: كن دقيقاً ومباشراً جداً، وضع أي كود برمجي داخل علامات الكود الثلاثية (\`\`\`) لكي يسهل نسخه.
-3. إذا سألك أي شخص عن هويتك أو من طورك، أجب بكل وضوح: "من طورني هو استوديو NC".`;
+1. تحدث دائماً باللهجة العامية الدارجة والمريحة (عربي أو إنجليزي حسب لغة المستخدم).
+2. في البرمجة: ضع الأكواد داخل علامات الكود الثلاثية (\`\`\`).
+3. **توليد الصور:** إذا طلب المستخدم إنشاء أو توليد صورة، يجب أن تقوم بتأليف وصف إنجليزي دقيق للصورة، ثم تضعها مباشرة على شكل رابط صورة (Markdown) بهذه الطريقة تماماً: 
+   ![صورة مولدة](https://image.pollinations.ai/prompt/DESCRIPTION_HERE)
+   حيث تستبدل DESCRIPTION_HERE بالوصف الإنجليزي (بدون مسافات، استخدم الشرطات بين الكلمات مثل: \`a-futuristic-robot-in-space\`). ولا تضف أي نص آخر يشرح كيف تعمل الصورة، بل اعرضها مباشرة!
+4. إذا سألك أحد عن مطورك أجب بكل وضوح: "من طورني هو استوديو NC".`;
 
-  // تم اختيار نموذج openai/gpt-oss-120b لأنه متاح في خطتك وقوي جداً في البرمجة والمحادثة
-  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'openai/gpt-oss-120b';
-  const maxTokensLimit = hasImage ? 512 : 1500;
-
-  const fullMessages = hasImage
-    ? messages.filter(m => m.role !== 'system')
-    : [
-        { role: "system", content: systemInstructions },
-        ...messages.filter(m => m.role !== 'system')
-      ];
+  const fullMessages = [
+    { role: "system", content: systemInstructions },
+    ...messages.filter(m => m.role !== 'system')
+  ];
 
   try {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -56,10 +49,10 @@ module.exports = async function handler(req, res) {
         'Authorization': `Bearer ${activeKey}`
       },
       body: JSON.stringify({
-        model: selectedModel,
+        model: 'llama-3.3-70b-versatile',
         messages: fullMessages,
-        temperature: 0.4,
-        max_tokens: maxTokensLimit
+        temperature: 0.6,
+        max_tokens: 1500
       })
     });
 
