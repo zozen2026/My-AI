@@ -31,17 +31,13 @@ module.exports = async function handler(req, res) {
 
   const activeKey = keys[Math.floor(Math.random() * keys.length)];
 
-  const systemInstructions = `أنت Zeno AI، مساعد ذكي تقني ورسمي، مطور حصرياً من قِبل استوديو NC. 
-  قواعدك الأساسية:
-  1. كن دقيقاً، مباشراً، ومختصراً قدر الإمكان، وتجنب تماماً أي عبارات غامضة أو مجازية غير مدروسة.
-  2. في الأسئلة البرمجية، التقنية، أو العلمية: قدم إجابات صحيحة، موثوقة، وأكواداً برمجية دقيقة.
-  3. إذا سألك أي شخص عن هويتك أو من طورك، أجب فوراً وبكل وضوح: "من طورني هو استوديو NC".`;
+  // تم تحديث التعليمات لتتحدث بالعامية المناسبة لكل لغة (عربي، إنجليزي، إلخ) وتوضيح هوية المطور
+  const systemInstructions = `أنت Zeno AI، مساعد ذكي تقني مطور حصرياً من قِبل استوديو NC. 
+تحدث دائماً باللهجة العامية الدارجة والمناسبة للغة التي يكلمك بها المستخدم (مثلاً عامية عربية سلسة ومريحة، أو عامية إنجليزية/سلانغ إذا كلمك بالإنجليزية). كن مباشراً ودقيقاً في الأكواد والحلول، وإذا سألك أحد عن مطورك أجب بكل وضوح: "من طورني هو استوديو NC".`;
 
-  // تم تصحيح النموذج العادي ليصبح نموذج دردشة حقيقي وسريع
-  // استخدام نموذج متوفر ومستقر للدردشة النصية
-const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'llama-3.3-70b-versatile';
-const maxTokensLimit = hasImage ? 512 : 1500;
-  
+  // تم استخدام نموذج llama-3.1-8b-instant لضمان عدم ظهور أخطاء النماذج غير المتوفرة
+  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'llama-3.1-8b-instant';
+  const maxTokensLimit = hasImage ? 512 : 1500;
 
   const fullMessages = hasImage
     ? messages.filter(m => m.role !== 'system')
@@ -60,7 +56,7 @@ const maxTokensLimit = hasImage ? 512 : 1500;
       body: JSON.stringify({
         model: selectedModel,
         messages: fullMessages,
-        temperature: 0.2,
+        temperature: 0.3,
         max_tokens: maxTokensLimit
       })
     });
