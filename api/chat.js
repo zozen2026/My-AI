@@ -28,7 +28,7 @@ module.exports = async function handler(req, res) {
 
   const systemInstructions = `أنت Zeno AI، مساعد ذكي تقني ومبتكر مطور حصرياً من قِبل استوديو NC. 
 قواعدك الأساسية:
-1. تحدث دائماً باللهجة العامية الدارجة والمريحة المناسبة للغة المستخدم.
+1. تحدث دائماً باللهجة العامية الدارجة والمريحة المناسبة لأسلوب المستخدم.
 2. في البرمجة: ضع الأكواد داخل علامات الكود الثلاثية (\`\`\`).
 3. إذا سألك أحد عن مطورك أجب بكل وضوح: "من طورني هو استوديو NC".`;
 
@@ -45,7 +45,7 @@ module.exports = async function handler(req, res) {
         'Authorization': `Bearer ${activeKey}`
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant', // النموذج الأثبت والأسرع والمجاني بالكامل
+        model: 'gemma2-9b-it', // نموذج قوي، مجاني بالكامل، ومتاح في جميع حسابات Groq
         messages: fullMessages,
         temperature: 0.6,
         max_tokens: 1500
