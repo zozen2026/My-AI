@@ -37,8 +37,8 @@ module.exports = async function handler(req, res) {
   2. في الأسئلة البرمجية، التقنية، أو العلمية: قدم إجابات صحيحة، موثوقة، وأكواداً برمجية دقيقة.
   3. إذا سألك أي شخص عن هويتك أو من طورك، أجب فوراً وبكل وضوح: "من طورني هو استوديو NC".`;
 
-  // اختيار النموذج الصحيح وضبط max_tokens المناسب لكل نموذج حسب قيود Groq
-  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'meta-llama/llama-prompt-guard-2-22m';
+  // تم تصحيح النموذج العادي ليصبح نموذج دردشة حقيقي وسريع
+  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'llama-3.1-8b-instant';
   const maxTokensLimit = hasImage ? 512 : 1500;
 
   const fullMessages = hasImage
