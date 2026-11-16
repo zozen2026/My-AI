@@ -37,7 +37,7 @@ module.exports = async function handler(req, res) {
   2. في الأسئلة البرمجية، التقنية، أو العلمية: قدم إجابات صحيحة، موثوقة، وأكواداً برمجية دقيقة.
   3. إذا سألك أي شخص عن هويتك أو من طورك، أجب فوراً وبكل وضوح: "من طورني هو استوديو NC".`;
 
-  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'llama-3.1-8b-instant';
+  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'meta-llama/llama-prompt-guard-2-86m';
 
   const fullMessages = hasImage
     ? messages.filter(m => m.role !== 'system')
