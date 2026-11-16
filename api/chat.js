@@ -38,7 +38,7 @@ module.exports = async function handler(req, res) {
   3. إذا سألك أي شخص عن هويتك أو من طورك، أجب فوراً وبكل وضوح: "من طورني هو استوديو NC".`;
 
   // اختيار النموذج الصحيح وضبط max_tokens المناسب لكل نموذج حسب قيود Groq
-  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'llama-3.1-8b-instant';
+  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'meta-llama/llama-prompt-guard-2-22m';
   const maxTokensLimit = hasImage ? 512 : 1500;
 
   const fullMessages = hasImage
