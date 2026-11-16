@@ -31,12 +31,14 @@ module.exports = async function handler(req, res) {
 
   const activeKey = keys[Math.floor(Math.random() * keys.length)];
 
-  // تم تحديث التعليمات لتتحدث بالعامية المناسبة لكل لغة (عربي، إنجليزي، إلخ) وتوضيح هوية المطور
   const systemInstructions = `أنت Zeno AI، مساعد ذكي تقني مطور حصرياً من قِبل استوديو NC. 
-تحدث دائماً باللهجة العامية الدارجة والمناسبة للغة التي يكلمك بها المستخدم (مثلاً عامية عربية سلسة ومريحة، أو عامية إنجليزية/سلانغ إذا كلمك بالإنجليزية). كن مباشراً ودقيقاً في الأكواد والحلول، وإذا سألك أحد عن مطورك أجب بكل وضوح: "من طورني هو استوديو NC".`;
+قواعدك الأساسية:
+1. تحدث دائماً باللهجة العامية الدارجة والمريحة المناسبة للغة المستخدم (مثلاً: عامية عربية سلسة وودودة إذا كلمك بالعربي، أو عامية إنجليزية/سلانغ طبيعية إذا كلمك بالإنجليزي).
+2. في الأسئلة البرمجية والتقنية: كن دقيقاً ومباشراً جداً، وضع أي كود برمجي داخل علامات الكود الثلاثية (\`\`\`) لكي يسهل نسخه.
+3. إذا سألك أي شخص عن هويتك أو من طورك، أجب بكل وضوح: "من طورني هو استوديو NC".`;
 
-  // تم استخدام نموذج llama-3.1-8b-instant لضمان عدم ظهور أخطاء النماذج غير المتوفرة
-  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'llama-3.1-8b-instant';
+  // تم اختيار نموذج openai/gpt-oss-120b لأنه متاح في خطتك وقوي جداً في البرمجة والمحادثة
+  const selectedModel = hasImage ? 'llama-3.2-11b-vision-preview' : 'openai/gpt-oss-120b';
   const maxTokensLimit = hasImage ? 512 : 1500;
 
   const fullMessages = hasImage
@@ -56,7 +58,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         model: selectedModel,
         messages: fullMessages,
-        temperature: 0.3,
+        temperature: 0.4,
         max_tokens: maxTokensLimit
       })
     });
