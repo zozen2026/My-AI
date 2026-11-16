@@ -162,7 +162,7 @@
     .chat-container {
       flex: 1;
       width: 100%;
-      max-width: 700px;
+      max-width: 750px;
       background: #ffffff;
       border: 1px solid #e2e8f0;
       border-radius: 16px;
@@ -181,19 +181,19 @@
       gap: 14px;
     }
     .message {
-      max-width: 80%;
+      max-width: 85%;
       padding: 12px 16px;
       border-radius: 14px;
       font-size: 0.95rem;
       line-height: 1.6;
       word-break: break-word;
-      white-space: pre-wrap;
     }
     .message.user {
       background-color: #f97316;
       color: #ffffff;
       align-self: flex-start;
       border-bottom-right-radius: 4px;
+      white-space: pre-wrap;
     }
     .message.assistant {
       background-color: #f1f5f9;
@@ -201,14 +201,57 @@
       align-self: flex-end;
       border-bottom-left-radius: 4px;
       border-right: 4px solid #4285F4;
+      width: fit-content;
     }
     .message img {
       max-width: 100%;
-      max-height: 300px;
-      border-radius: 10px;
-      margin-top: 8px;
+      max-height: 350px;
+      border-radius: 12px;
+      margin-top: 10px;
       display: block;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+
+    /* تنسيق مربعات الأكواد السوداء وزر النسخ */
+    .code-block-wrapper {
+      background-color: #1e1e1e;
+      color: #f8f8f2;
+      border-radius: 10px;
+      margin: 10px 0;
+      overflow: hidden;
+      direction: ltr;
+      text-align: left;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      font-family: 'Consolas', 'Monaco', monospace;
+    }
+    .code-block-header {
+      background-color: #2d2d2d;
+      padding: 6px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      color: #a1a1aa;
+      border-bottom: 1px solid #3f3f46;
+    }
+    .copy-code-btn {
+      background-color: #3f3f46;
+      color: #ffffff;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-family: system-ui, sans-serif;
+      transition: background 0.2s;
+    }
+    .copy-code-btn:hover { background-color: #f97316; }
+    .code-block-content {
+      padding: 12px 14px;
+      overflow-x: auto;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      white-space: pre;
     }
 
     /* معاينة الصورة المرفقة قبل الإرسال */
@@ -405,14 +448,14 @@
   <!-- صندوق المحادثة -->
   <div class="chat-container">
     <div class="chat-messages" id="chat-messages">
-      <div class="message assistant">Welcome to Zeno AI</div>
+      <div class="message assistant">أهلاً بك في Zeno AI! اسألني أي شيء في البرمجة أو اطلب مني رسم أي صورة تخطر ببالك.</div>
     </div>
 
     <!-- شريط معاينة الصورة المختارة -->
     <div class="image-preview-bar" id="image-preview-bar">
       <div class="image-preview-content">
         <img id="preview-img-thumb" src="" alt="معاينة الصورة">
-        <span>تم إرفاق صورة، اكتب سؤالك أو طلب التعديل...</span>
+        <span>تم إرفاق صورة، اكتب سؤالك...</span>
       </div>
       <button class="remove-img-btn" onclick="clearSelectedImage()" title="إزالة الصورة">×</button>
     </div>
@@ -545,7 +588,6 @@
       const file = event.target.files[0];
       if (!file) return;
 
-      // ضغط الصورة لتقليل الحجم وضمان سرعة الإرسال وعدم تجاوز حد البيانات
       const reader = new FileReader();
       reader.onload = function(e) {
         const img = new Image();
@@ -575,7 +617,7 @@
     }
 
     // -------------------------------------------------------------
-    // النظام الذكي والاتصال الآمن بخادم Vercel الوسيط (/api/chat)
+    // تنسيق الرسائل: دعم مربعات الأكواد السوداء + زر النسخ + عرض الصور
     // -------------------------------------------------------------
     const chatMessages = document.getElementById('chat-messages');
     const userInput = document.getElementById('user-input');
@@ -587,31 +629,84 @@
     let conversationMessages = [
       { 
         role: "system", 
-        content: "أنت Zeno AI، مساعد ذكي متطور وصديق مقرب لمصطفى. تجيب عن كافة الأسئلة بدقة وذكاء وسلاسة باللغة العربية. تنبيه صارم وحرفي: إذا سألك أي شخص عن من صنعك، أو من طورك، أو من أنشأك، أو من برمجك، فيجب أن تكون إجابتك دائماً وحرفياً هي: 'من طورني هو استوديو NC'." 
+        content: "أنت Zeno AI، مساعد ذكي تقني ومبدع مطور حصرياً من قِبل استوديو NC. تحدث باللهجة العامية الدارجة والمريحة المناسبة للغة المستخدم. في البرمجة، ضع أي كود برمجي داخل علامات الكود الثلاثية (```). إذا سألك أحد عن مطورك أجب: 'من طورني هو استوديو NC'." 
       }
     ];
+
+    function escapeHTML(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function formatMessageContent(text) {
+      // 1. استخراج مربعات الأكواد الثلاثية ```lang ... ``` وتحويلها لصندوق أسود مع زر نسخ
+      const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
+      let formatted = text.replace(codeBlockRegex, (match, lang, code) => {
+        const languageLabel = lang ? lang.toUpperCase() : 'CODE';
+        const escapedCode = escapeHTML(code.trim());
+        const encodedCode = encodeURIComponent(code.trim());
+        return `
+          <div class="code-block-wrapper">
+            <div class="code-block-header">
+              <span>${languageLabel}</span>
+              <button class="copy-code-btn" onclick="copyCodeToClipboard(this, '${encodedCode}')">نسخ الكود</button>
+            </div>
+            <div class="code-block-content"><code>${escapedCode}</code></div>
+          </div>
+        `;
+      });
+
+      // 2. تحويل روابط صور Markdown ![alt](url) إلى صور مرئية حقيقية
+      formatted = formatted.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+
+      // 3. الحفاظ على فواصل الأسطر في النصوص العادية خارج الأكواد
+      const parts = formatted.split(/(<div class="code-block-wrapper">[\s\S]*?<\/div>\s*<\/div>)/g);
+      return parts.map(part => {
+        if (part.startsWith('<div class="code-block-wrapper">')) return part;
+        return part.replace(/\n/g, '<br>');
+      }).join('');
+    }
+
+    function copyCodeToClipboard(btn, encodedCode) {
+      const decodedCode = decodeURIComponent(encodedCode);
+      navigator.clipboard.writeText(decodedCode).then(() => {
+        const originalText = btn.innerText;
+        btn.innerText = "تم النسخ! ✓";
+        btn.style.backgroundColor = "#16a34a";
+        setTimeout(() => {
+          btn.innerText = originalText;
+          btn.style.backgroundColor = "";
+        }, 2000);
+      });
+    }
 
     function appendMessage(role, text, imageUrl = null) {
       const msgDiv = document.createElement('div');
       msgDiv.className = `message ${role}`;
+      
       if (text) {
         const textNode = document.createElement('div');
-        textNode.innerText = text;
+        if (role === 'assistant') {
+          textNode.innerHTML = formatMessageContent(text);
+        } else {
+          textNode.innerText = text;
+        }
         msgDiv.appendChild(textNode);
       }
+
       if (imageUrl) {
         const img = document.createElement('img');
         img.src = imageUrl;
-        img.alt = "صورة";
+        img.alt = "صورة مولدة";
         msgDiv.appendChild(img);
       }
+
       chatMessages.appendChild(msgDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // التحقق مما إذا كان المستخدم يطلب رسم أو توليد صورة تلقائياً
+    // التحقق مما إذا كان المستخدم يطلب رسم أو توليد صورة
     function isImageGenerationRequest(text) {
-      const keywords = ['ارسم', 'صمم صورة', 'تخيل صورة', 'اعمل صورة', 'اصنع صورة', 'توليد صورة', 'draw', 'generate image', 'create image'];
+      const keywords = ['ارسم', 'صمم صورة', 'تخيل صورة', 'اعمل صورة', 'اصنع صورة', 'توليد صورة', 'انشئ صورة', 'أنشئ صورة', 'draw', 'generate image', 'create image'];
       const lower = text.toLowerCase();
       return keywords.some(kw => lower.includes(kw));
     }
@@ -626,76 +721,81 @@
       userInput.value = '';
       clearSelectedImage();
 
-      // عرض رسالة المستخدم في الدردشة
       appendMessage('user', text || "تحليل هذه الصورة", attachedImage);
 
-      // حالة 1: المستخدم يطلب رسم صورة جديدة (بدون إرفاق صورة)
+      // حالة 1: طلب توليد صورة جديدة -> نطلب من Zeno ترجمة الوصف للإنجليزية أولاً لضمان عمل التوليد 100%
       if (!attachedImage && isImageGenerationRequest(text)) {
         isProcessing = true;
         sendBtn.disabled = true;
         orb.className = "orb thinking";
-        aiStatus.innerText = "Zeno يقوم برسم الصورة لك...";
+        aiStatus.innerText = "Zeno يبتكر وصف الصورة ويرسمها لك...";
 
-        // توليد رابط صورة مباشر ومجاني بالكامل
-        const cleanPrompt = encodeURIComponent(text);
-        const generatedImageUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
+        try {
+          // خطوة 1: نستخدم الذكاء الاصطناعي لصياغة وصف إنجليزي إبداعي دقيق للصورة
+          const promptRes = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: [
+                { role: "system", content: "You are an expert image prompt engineer. Translate and expand the user's image request into a vivid, detailed English prompt (max 25 words). Reply ONLY with the English prompt, nothing else." },
+                { role: "user", content: text }
+              ],
+              hasImage: false
+            })
+          });
 
-        // تحميل الصورة للتأكد من جاهزيتها قبل العرض
-        const imgLoader = new Image();
-        imgLoader.onload = () => {
-          appendMessage('assistant', "تفضل، هذه هي الصورة التي طلبتها:", generatedImageUrl);
+          const promptData = await promptRes.json();
+          const englishPrompt = promptData.choices?.[0]?.message?.content?.trim() || text;
+
+          // خطوة 2: توليد الصورة بالوصف الإنجليزي الدقيق
+          const cleanPrompt = encodeURIComponent(englishPrompt);
+          const generatedImageUrl = `[https://image.pollinations.ai/prompt/$](https://image.pollinations.ai/prompt/$){cleanPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+
+          const imgLoader = new Image();
+          imgLoader.onload = () => {
+            appendMessage('assistant', "تفضل، رسمت لك هذه الصورة خصيصاً:", generatedImageUrl);
+            orb.className = "orb";
+            aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
+            isProcessing = false;
+            sendBtn.disabled = false;
+          };
+          imgLoader.onerror = () => {
+            appendMessage('assistant', "⚠️ تعذر تحميل الصورة من الخادم، جرب وصفاً آخر.");
+            orb.className = "orb";
+            aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
+            isProcessing = false;
+            sendBtn.disabled = false;
+          };
+          imgLoader.src = generatedImageUrl;
+        } catch (e) {
+          appendMessage('assistant', "⚠️ حدث خطأ أثناء توليد الصورة.");
           orb.className = "orb";
-          aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
           isProcessing = false;
           sendBtn.disabled = false;
-        };
-        imgLoader.onerror = () => {
-          appendMessage('assistant', "⚠️ تعذر رسم الصورة حالياً، يرجى المحاولة بوصف آخر.");
-          orb.className = "orb";
-          aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
-          isProcessing = false;
-          sendBtn.disabled = false;
-        };
-        imgLoader.src = generatedImageUrl;
+        }
         return;
       }
 
-      // حالة 2: إرسال صورة مع سؤال (نموذج الرؤية) أو محادثة نصية عادية
-      if (attachedImage) {
-        conversationMessages.push({
-          role: "user",
-          content: [
-            { type: "text", text: text || "ماذا يوجد في هذه الصورة؟ اشرح لي بالتفصيل." },
-            { type: "image_url", image_url: { url: attachedImage } }
-          ]
-        });
-      } else {
-        conversationMessages.push({ role: "user", content: text });
-      }
-
-      await processAIResponse(false, !!attachedImage);
+      // حالة 2: محادثة نصية أو برمجية
+      conversationMessages.push({ role: "user", content: text });
+      await processAIResponse(false, false);
     }
 
     async function processAIResponse(shouldSpeak = false, hasImage = false) {
       isProcessing = true;
       sendBtn.disabled = true;
       orb.className = "orb thinking";
-      aiStatus.innerText = hasImage ? "Zeno يحلل الصورة..." : "Zeno يفكر في الإجابة...";
+      aiStatus.innerText = "Zeno يفكر في الإجابة...";
 
-      // نرسل آخر الرسائل (وإذا كانت هناك صورة نكتفي بآخر رسالة مع التعليمات لتسريع الاستجابة)
-      const recentMessages = hasImage 
-        ? [conversationMessages[0], conversationMessages[conversationMessages.length - 1]]
-        : [conversationMessages[0], ...conversationMessages.slice(-10)];
+      const recentMessages = [conversationMessages[0], ...conversationMessages.slice(-10)];
 
       try {
         const response = await fetch("/api/chat", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             messages: recentMessages,
-            hasImage: hasImage
+            hasImage: false
           })
         });
 
@@ -710,10 +810,6 @@
         
         if (data.choices && data.choices.length > 0) {
           const aiReply = data.choices[0].message.content;
-          // نحفظ الرد النصي في الذاكرة لتجنب ثقل الصور القديمة
-          if (hasImage) {
-            conversationMessages[conversationMessages.length - 1] = { role: "user", content: "[أرسل المستخدم صورة]" };
-          }
           conversationMessages.push({ role: "assistant", content: aiReply });
           appendMessage('assistant', aiReply);
           orb.className = "orb";
@@ -722,11 +818,7 @@
           if (shouldSpeak) {
             speakZenoReply(aiReply);
           }
-        } else {
-          orb.className = "orb";
-          aiStatus.innerText = "لم تصل استجابة.";
         }
-
       } catch (err) {
         console.error(err);
         orb.className = "orb";
@@ -810,6 +902,7 @@
 
     function cleanTextForSpeech(text) {
       return text
+        .replace(/```[\s\S]*?```/g, ' الكود البرمجي موضح في الشاشة ')
         .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]|\uD800-\uDBFF[\uDC00-\uDFFF])/g, '')
         .replace(/[#_*~`@$%^&+=<>|\\/[\]{}()]/g, ' ')
         .replace(/-/g, ' ')
