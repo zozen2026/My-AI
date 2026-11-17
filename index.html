@@ -102,11 +102,37 @@
     }
     .profile-menu button:hover { background: #f4f4f5; }
 
+    /* قائمة اختيار النماذج في أعلى اليمين */
+    .model-selector-wrapper {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #ffffff;
+      padding: 8px 12px;
+      border-radius: 14px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+      z-index: 100;
+    }
+    .model-selector-wrapper select {
+      background: transparent;
+      color: #1e293b;
+      border: none;
+      outline: none;
+      font-size: 0.82rem;
+      font-weight: bold;
+      cursor: pointer;
+      max-width: 140px;
+    }
+
     /* الشعار */
     .logo { 
       font-size: 2.2rem; 
       font-weight: 900; 
-      margin-bottom: 10px; 
+      margin-bottom: 8px; 
       letter-spacing: -1px; 
       color: #4285F4;
     }
@@ -117,12 +143,12 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 15px;
+      gap: 6px;
+      margin-bottom: 12px;
     }
     .orb {
-      width: 50px;
-      height: 50px;
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       background: radial-gradient(circle at 30% 30%, #60a5fa, #2563eb);
       box-shadow: 0 0 15px rgba(37, 99, 235, 0.4);
@@ -170,7 +196,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
     }
     .chat-messages {
       flex: 1;
@@ -411,9 +437,42 @@
       pointer-events: none;
       font-weight: bold;
     }
+
+    @media (max-width: 600px) {
+      .model-selector-wrapper {
+        top: 15px;
+        right: 12px;
+        padding: 6px 8px;
+      }
+      .model-selector-wrapper select {
+        font-size: 0.75rem;
+        max-width: 110px;
+      }
+      .profile-wrapper {
+        top: 15px;
+        left: 12px;
+      }
+      .logo {
+        margin-top: 32px;
+        font-size: 1.9rem;
+      }
+    }
   </style>
 </head>
 <body>
+
+  <!-- قائمة اختيار النماذج في أعلى اليمين -->
+  <div class="model-selector-wrapper" title="اختر نموذج الذكاء الاصطناعي">
+    <span>⚡</span>
+    <select id="modelSelect">
+      <option value="auto" selected>Zeno Auto (تلقائي)</option>
+      <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout (سريع)</option>
+      <option value="qwen/qwen3-32b">Qwen 3 32B (عربي/برمجة)</option>
+      <option value="openai/gpt-oss-120b">GPT-OSS 120B (ذكي جداً)</option>
+      <option value="llama-3.3-70b-versatile">Llama 3.3 70B (متوازن)</option>
+      <option value="llama-3.1-8b-instant">Llama 3.1 8B (فوري)</option>
+    </select>
+  </div>
 
   <!-- حاوية البروفايل -->
   <div class="profile-wrapper" id="profile-icon" title="الملف الشخصي">
@@ -638,7 +697,6 @@
     }
 
     function formatMessageContent(text) {
-      // 1. استخراج مربعات الأكواد الثلاثية ```lang ... ``` وتحويلها لصندوق أسود مع زر نسخ
       const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
       let formatted = text.replace(codeBlockRegex, (match, lang, code) => {
         const languageLabel = lang ? lang.toUpperCase() : 'CODE';
@@ -655,10 +713,8 @@
         `;
       });
 
-      // 2. تحويل روابط صور Markdown ![alt](url) إلى صور مرئية حقيقية
       formatted = formatted.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
 
-      // 3. الحفاظ على فواصل الأسطر في النصوص العادية خارج الأكواد
       const parts = formatted.split(/(<div class="code-block-wrapper">[\s\S]*?<\/div>\s*<\/div>)/g);
       return parts.map(part => {
         if (part.startsWith('<div class="code-block-wrapper">')) return part;
@@ -704,7 +760,6 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // التحقق مما إذا كان المستخدم يطلب رسم أو توليد صورة
     function isImageGenerationRequest(text) {
       const keywords = ['ارسم', 'صمم صورة', 'تخيل صورة', 'اعمل صورة', 'اصنع صورة', 'توليد صورة', 'انشئ صورة', 'أنشئ صورة', 'draw', 'generate image', 'create image'];
       const lower = text.toLowerCase();
@@ -723,7 +778,9 @@
 
       appendMessage('user', text || "تحليل هذه الصورة", attachedImage);
 
-      // حالة 1: طلب توليد صورة جديدة -> نطلب من Zeno ترجمة الوصف للإنجليزية أولاً لضمان عمل التوليد 100%
+      const chosenModel = document.getElementById('modelSelect')?.value || 'auto';
+
+      // حالة 1: طلب توليد صورة جديدة
       if (!attachedImage && isImageGenerationRequest(text)) {
         isProcessing = true;
         sendBtn.disabled = true;
@@ -731,7 +788,6 @@
         aiStatus.innerText = "Zeno يبتكر وصف الصورة ويرسمها لك...";
 
         try {
-          // خطوة 1: نستخدم الذكاء الاصطناعي لصياغة وصف إنجليزي إبداعي دقيق للصورة
           const promptRes = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -740,6 +796,7 @@
                 { role: "system", content: "You are an expert image prompt engineer. Translate and expand the user's image request into a vivid, detailed English prompt (max 25 words). Reply ONLY with the English prompt, nothing else." },
                 { role: "user", content: text }
               ],
+              model: chosenModel,
               hasImage: false
             })
           });
@@ -747,7 +804,6 @@
           const promptData = await promptRes.json();
           const englishPrompt = promptData.choices?.[0]?.message?.content?.trim() || text;
 
-          // خطوة 2: توليد الصورة بالوصف الإنجليزي الدقيق
           const cleanPrompt = encodeURIComponent(englishPrompt);
           const generatedImageUrl = `[https://image.pollinations.ai/prompt/$](https://image.pollinations.ai/prompt/$){cleanPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
 
@@ -787,7 +843,8 @@
       orb.className = "orb thinking";
       aiStatus.innerText = "Zeno يفكر في الإجابة...";
 
-      const recentMessages = [conversationMessages[0], ...conversationMessages.slice(-10)];
+      const recentMessages = [conversationMessages[0], ...conversationMessages.slice(-8)];
+      const chosenModel = document.getElementById('modelSelect')?.value || 'auto';
 
       try {
         const response = await fetch("/api/chat", {
@@ -795,6 +852,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             messages: recentMessages,
+            model: chosenModel,
             hasImage: false
           })
         });
@@ -926,8 +984,16 @@
 
       utterance.onstart = () => { orb.className = "orb speaking"; aiStatus.innerText = "Zeno يتحدث..."; };
       utterance.onend = () => {
-        isAISpeaking = false; 
-        orb.className = "orb"; 
+        isAISpeaking = false;
+        orb.className = "orb";
+        aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
+        if (!manualStop && recognition) {
+          try { recognition.start(); } catch (e) {}
+        }
+      };
+      utterance.onerror = () => {
+        isAISpeaking = false;
+        orb.className = "orb";
         aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
       };
 
