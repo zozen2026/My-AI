@@ -1,12 +1,20 @@
 module.exports = async function handler(req, res) {
+  // السماح بطلبات OPTIONS الخاصة بالمتصفحات (CORS Preflight)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
+  // 1. حماية مرنة تعمل على جميع الهواتف وتطبيقات PWA بدون حظر المتصفحات التي تخفي Referer
   const referer = req.headers.referer || '';
+  const origin = req.headers.origin || '';
   const host = req.headers.host || '';
-  const isLocal = referer.includes('localhost') || referer.includes('127.0.0.1');
-  if (!isLocal && !referer.includes(host)) {
+  const isLocal = referer.includes('localhost') || referer.includes('127.0.0.1') || origin.includes('localhost');
+
+  if (!isLocal && referer && !referer.includes(host) && origin && !origin.includes(host)) {
     return res.status(403).json({ error: 'Access Denied: Invalid Origin' });
   }
 
@@ -15,13 +23,13 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid messages format' });
   }
 
-  // فحص آخر رسالة من المستخدم لمعرفة هل يطلب صورة أم محادثة عادية
+  // فحص آخر رسالة لمعرفة هل المستخدم يطلب رسم صورة أم محادثة نصية
   const lastUserMessage = messages[messages.length - 1]?.content?.trim() || '';
   const imageTriggers = ['/رسم', '/image', 'ارسم لي', 'ارسم', 'صمم صورة', 'ولد صورة'];
   const isImageRequest = imageTriggers.some(trigger => lastUserMessage.startsWith(trigger));
 
   // ==========================================
-  // 1. مسار توليد الصور (Pollinations Image - مجاني 100%)
+  // المسار الأول: توليد الصور (Pollinations Image - مجاني 100%)
   // ==========================================
   if (isImageRequest) {
     let cleanPrompt = lastUserMessage;
@@ -57,7 +65,7 @@ module.exports = async function handler(req, res) {
   }
 
   // ==========================================
-  // 2. مسار المحادثة النصية (Pollinations Text - مجاني بدون توكنز)
+  // المسار الثاني: المحادثة النصية (Pollinations أساسي + Groq احتياطي)
   // ==========================================
   const systemInstructions = `أنت Zeno AI، مساعد ذكي تقني ومبتكر مطور حصرياً من قِبل استوديو NC. 
 قواعدك الأساسية:
@@ -70,29 +78,63 @@ module.exports = async function handler(req, res) {
     ...messages.filter(m => m.role !== 'system')
   ];
 
+  // المحاولة الأولى: Pollinations (مجاني 100% بدون توكنز)
   try {
-    const response = await fetch('https://text.pollinations.ai/openai', {
+    const pollinationsRes = await fetch('https://text.pollinations.ai/openai', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'openai', // نموذج ذكي ومجاني بدون مفاتيح أو حدود توكنز
+        model: 'openai',
         messages: fullMessages,
         seed: Math.floor(Math.random() * 100000)
       })
     });
 
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: 'تعذر الاتصال بالخادم حالياً، حاول مرة أخرى.'
-      });
+    if (pollinationsRes.ok) {
+      const data = await pollinationsRes.json();
+      if (data && data.choices && data.choices.length > 0) {
+        return res.status(200).json(data);
+      }
     }
-
-    const data = await response.json();
-    return res.status(200).json(data);
-
-  } catch (error) {
-    return res.status(500).json({ error: 'حدث خطأ في الاتصال بالخادم' });
+  } catch (err) {
+    // في حال تعثر Pollinations، سينتقل بصمت للخطة الاحتياطية بالأسفل
   }
+
+  // المحاولة الثانية (الاحتياطية): Groq API في حال ازدحام السيرفر الأول
+  const keys = Object.keys(process.env)
+    .filter(key => key.startsWith('GROQ_API_KEY'))
+    .map(key => process.env[key]?.trim())
+    .filter(Boolean);
+
+  if (keys.length > 0) {
+    const activeKey = keys[Math.floor(Math.random() * keys.length)];
+    try {
+      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeKey}`
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: fullMessages,
+          temperature: 0.6,
+          max_tokens: 900
+        })
+      });
+
+      const groqData = await groqRes.json();
+      if (groqRes.ok) {
+        return res.status(200).json(groqData);
+      }
+    } catch (groqErr) {
+      // تجاهل الخطأ والوصول لرسالة الخطأ الموحدة بالأسفل
+    }
+  }
+
+  return res.status(503).json({
+    error: 'الخادم مشغول حالياً، يرجى المحاولة مرة أخرى بعد ثوانٍ.'
+  });
 };
