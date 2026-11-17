@@ -7,6 +7,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
+  // حماية مرنة تعمل على جميع الهواتف وتطبيقات PWA
   const referer = req.headers.referer || '';
   const origin = req.headers.origin || '';
   const host = req.headers.host || '';
@@ -21,23 +22,25 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid messages format' });
   }
 
+  // جلب جميع مفاتيح GROQ_API_KEY المضافة في الاستضافة
   const keys = Object.keys(process.env)
     .filter(key => key.startsWith('GROQ_API_KEY'))
     .map(key => process.env[key]?.trim())
     .filter(Boolean);
 
   if (keys.length === 0) {
-    return res.status(500).json({ error: 'لا توجد مفاتيح GROQ_API_KEY مضافة في السيرفر' });
+    return res.status(500).json({ error: 'لا توجد مفاتيح GROQ_API_KEY مضافة في إعدادات السيرفر' });
   }
 
   const shuffledKeys = keys.sort(() => Math.random() - 0.5);
 
+  // النماذج المستقرة والمؤكدة في Groq
   const defaultModels = [
-    'meta-llama/llama-4-scout-17b-16e-instruct',
-    'qwen/qwen3-32b',
+    'llama-3.3-70b-versatile',
     'llama-3.1-8b-instant',
     'openai/gpt-oss-120b',
-    'llama-3.3-70b-versatile'
+    'meta-llama/llama-4-scout-17b-16e-instruct',
+    'qwen/qwen3-32b'
   ];
 
   let modelsToTry = [...defaultModels];
@@ -57,10 +60,12 @@ module.exports = async function handler(req, res) {
     ...recentMessages
   ];
 
+  let lastGroqError = '';
+
   for (const apiKey of shuffledKeys) {
     for (const modelName of modelsToTry) {
       try {
-        const response = await fetch('[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)', {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -78,14 +83,16 @@ module.exports = async function handler(req, res) {
 
         if (response.ok && data.choices && data.choices.length > 0) {
           return res.status(200).json(data);
+        } else {
+          lastGroqError = `${modelName}: ${data.error?.message || response.status}`;
         }
       } catch (err) {
-        // الانتقال بصمت للمحاولة التالية
+        lastGroqError = err.message;
       }
     }
   }
 
   return res.status(503).json({
-    error: 'جميع النماذج مشغولة حالياً، حاول مرة أخرى بعد ثوانٍ.'
+    error: `فشل الاتصال: ${lastGroqError}`
   });
 };
