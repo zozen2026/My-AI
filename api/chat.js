@@ -34,9 +34,9 @@ module.exports = async function handler(req, res) {
 
   const shuffledKeys = keys.sort(() => Math.random() - 0.5);
 
-  // النماذج الداعمة للرؤية (الصور) في Groq
+  // النماذج الداعمة للصور (Vision) في Groq
   const visionModels = [
-    'meta-llama/llama-4-scout-17b-16e-instruct'
+    'qwen/qwen3.8-27b'
   ];
 
   // النماذج النصية المستقرة في Groq
@@ -44,14 +44,16 @@ module.exports = async function handler(req, res) {
     'llama-3.3-70b-versatile',
     'llama-3.1-8b-instant',
     'openai/gpt-oss-120b',
-    'meta-llama/llama-4-scout-17b-16e-instruct'
+    'qwen/qwen3.8-27b'
   ];
 
   let modelsToTry = imageBase64 ? [...visionModels] : [...defaultModels];
 
   if (selectedModel && selectedModel !== 'auto') {
     if (imageBase64) {
-      modelsToTry = [selectedModel, ...visionModels.filter(m => m !== selectedModel)];
+      modelsToTry = visionModels.includes(selectedModel)
+        ? [selectedModel, ...visionModels.filter(m => m !== selectedModel)]
+        : [...visionModels];
     } else {
       modelsToTry = [selectedModel, ...defaultModels.filter(m => m !== selectedModel)];
     }
