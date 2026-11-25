@@ -17,7 +17,7 @@ module.exports = async function handler(req, res) {
     return res.status(403).json({ error: 'Access Denied: Invalid Origin' });
   }
 
-  const { messages, model: selectedModel } = req.body;
+  const { messages, model: selectedModel, imageBase64 } = req.body;
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'Invalid messages format' });
   }
@@ -34,7 +34,10 @@ module.exports = async function handler(req, res) {
 
   const shuffledKeys = keys.sort(() => Math.random() - 0.5);
 
-  // النماذج المستقرة والمؤكدة في Groq
+  const visionModels = [
+    'meta-llama/llama-4-scout-17b-16e-instruct'
+  ];
+
   const defaultModels = [
     'llama-3.3-70b-versatile',
     'llama-3.1-8b-instant',
@@ -43,20 +46,42 @@ module.exports = async function handler(req, res) {
     'qwen/qwen3-32b'
   ];
 
-  let modelsToTry = [...defaultModels];
+  let modelsToTry = imageBase64
+    ? [...visionModels, ...defaultModels.filter(m => !visionModels.includes(m))]
+    : [...defaultModels];
+
   if (selectedModel && selectedModel !== 'auto') {
-    modelsToTry = [selectedModel, ...defaultModels.filter(m => m !== selectedModel)];
+    modelsToTry = [selectedModel, ...modelsToTry.filter(m => m !== selectedModel)];
   }
 
   const systemInstructions = `You are Zeno AI, an intelligent, creative technical AI assistant developed exclusively by NC Studio (استوديو NC).
 Core rules:
 1. Always respond in the exact same language as the user's latest message (Arabic, English, French, Spanish, Turkish, Kurdish, German, etc.), using a natural, friendly, conversational tone in that language.
-2. For programming, always place code inside triple backticks (\`\`\`).
-3. If asked who developed you, reply clearly in the user's language that you were developed by NC Studio ("من طورني هو استوديو NC" in Arabic, or "I was developed by NC Studio" in English).`;
+2. When an image is attached, examine it accurately and answer the user's question about it.
+3. For programming, always place code inside triple backticks (\`\`\`).
+4. If asked who developed you, reply clearly in the user's language that you were developed by NC Studio ("من طورني هو استوديو NC" in Arabic, or "I was developed by NC Studio" in English).`;
 
   const recentMessages = messages.filter(m => m.role !== 'system').slice(-6);
+
+  // إرفاق الصورة في آخر رسالة للمستخدم إذا كانت موجودة
+  if (imageBase64 && recentMessages.length > 0) {
+    const lastIdx = recentMessages.length - 1;
+    const lastMsg = recentMessages[lastIdx];
+    const textContent = typeof lastMsg.content === 'string'
+      ? lastMsg.content
+      : 'Describe and analyze this image.';
+
+    recentMessages[lastIdx] = {
+      ...lastMsg,
+      content: [
+        { type: 'text', text: textContent },
+        { type: 'image_url', image_url: { url: imageBase64 } }
+      ]
+    };
+  }
+
   const fullMessages = [
-    { role: "system", content: systemInstructions },
+    { role: 'system', content: systemInstructions },
     ...recentMessages
   ];
 
