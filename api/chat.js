@@ -34,24 +34,27 @@ module.exports = async function handler(req, res) {
 
   const shuffledKeys = keys.sort(() => Math.random() - 0.5);
 
+  // النماذج الداعمة للرؤية (الصور) في Groq
   const visionModels = [
     'meta-llama/llama-4-scout-17b-16e-instruct'
   ];
 
+  // النماذج النصية المستقرة في Groq
   const defaultModels = [
     'llama-3.3-70b-versatile',
     'llama-3.1-8b-instant',
     'openai/gpt-oss-120b',
-    'meta-llama/llama-4-scout-17b-16e-instruct',
-    'qwen/qwen3-32b'
+    'meta-llama/llama-4-scout-17b-16e-instruct'
   ];
 
-  let modelsToTry = imageBase64
-    ? [...visionModels, ...defaultModels.filter(m => !visionModels.includes(m))]
-    : [...defaultModels];
+  let modelsToTry = imageBase64 ? [...visionModels] : [...defaultModels];
 
   if (selectedModel && selectedModel !== 'auto') {
-    modelsToTry = [selectedModel, ...modelsToTry.filter(m => m !== selectedModel)];
+    if (imageBase64) {
+      modelsToTry = [selectedModel, ...visionModels.filter(m => m !== selectedModel)];
+    } else {
+      modelsToTry = [selectedModel, ...defaultModels.filter(m => m !== selectedModel)];
+    }
   }
 
   const systemInstructions = `You are Zeno AI, an intelligent, creative technical AI assistant developed exclusively by NC Studio (استوديو NC).
@@ -63,7 +66,6 @@ Core rules:
 
   const recentMessages = messages.filter(m => m.role !== 'system').slice(-6);
 
-  // إرفاق الصورة في آخر رسالة للمستخدم إذا كانت موجودة
   if (imageBase64 && recentMessages.length > 0) {
     const lastIdx = recentMessages.length - 1;
     const lastMsg = recentMessages[lastIdx];
