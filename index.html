@@ -467,7 +467,7 @@
     <select id="modelSelect">
       <option value="auto" selected>Zeno Auto (تلقائي)</option>
       <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout (سريع)</option>
-      <option value="qwen/qwen3-32b">Qwen 3 32B (عربي/برمجة)</option>
+      <option value="qwen/qwen3-32b">Qwen 3 32B (متعدد اللغات/برمجة)</option>
       <option value="openai/gpt-oss-120b">GPT-OSS 120B (ذكي جداً)</option>
       <option value="llama-3.3-70b-versatile">Llama 3.3 70B (متوازن)</option>
       <option value="llama-3.1-8b-instant">Llama 3.1 8B (فوري)</option>
@@ -507,7 +507,7 @@
   <!-- صندوق المحادثة -->
   <div class="chat-container">
     <div class="chat-messages" id="chat-messages">
-      <div class="message assistant">أهلاً بك في Zeno AI! اسألني أي شيء في البرمجة أو اطلب مني رسم أي صورة تخطر ببالك.</div>
+      <div class="message assistant">أهلاً بك في Zeno AI! اسألني بأي لغة في العالم في البرمجة أو أي مجال، أو اطلب مني رسم أي صورة تخطر ببالك.</div>
     </div>
 
     <!-- شريط معاينة الصورة المختارة -->
@@ -528,7 +528,7 @@
         </svg>
       </button>
 
-      <textarea id="user-input" placeholder="اكتب رسالتك أو اطلب رسم صورة..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTextMessage(); }"></textarea>
+      <textarea id="user-input" placeholder="اكتب رسالتك بأي لغة أو اطلب رسم صورة..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTextMessage(); }"></textarea>
       <button class="send-btn" id="send-btn" onclick="sendTextMessage()" title="إرسال">
         <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
@@ -579,7 +579,10 @@
     const loginModal = document.getElementById('login-modal');
     const signupModal = document.getElementById('signup-modal');
 
-    profileIcon.addEventListener('click', (e) => { e.stopPropagation(); profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block'; });
+    profileIcon.addEventListener('click', (e) => {
+      e.stopPropagation();
+      profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block';
+    });
     document.addEventListener('click', () => { profileMenu.style.display = 'none'; });
 
     document.getElementById('btn-show-login').onclick = () => { loginModal.style.display = 'flex'; };
@@ -591,9 +594,13 @@
       let username = document.getElementById('signup-username').value.trim();
       let accountName = document.getElementById('signup-accountname').value.trim() || username;
       const password = document.getElementById('signup-password').value;
-      if(!username || !password) return alert('يرجى ملء الحقول');
+      if (!username || !password) return alert('يرجى ملء الحقول');
 
-      const { data, error } = await supabaseClient.from('accounts').insert([{ username, account_name: accountName, password, language: 'ar' }]).select();
+      const { data, error } = await supabaseClient
+        .from('accounts')
+        .insert([{ username, account_name: accountName, password, language: 'auto' }])
+        .select();
+
       if (error) alert('خطأ: ' + error.message);
       else {
         alert('تم إنشاء الحساب بنجاح!');
@@ -606,7 +613,12 @@
     document.getElementById('login-submit').onclick = async () => {
       let username = document.getElementById('login-username').value.trim();
       const password = document.getElementById('login-password').value;
-      const { data, error } = await supabaseClient.from('accounts').select('*').eq('username', username).eq('password', password);
+      const { data, error } = await supabaseClient
+        .from('accounts')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password);
+
       if (error || !data || data.length === 0) alert('فشل تسجيل الدخول');
       else {
         localStorage.setItem('zeno_current_user', JSON.stringify(data[0]));
@@ -676,7 +688,7 @@
     }
 
     // -------------------------------------------------------------
-    // تنسيق الرسائل: دعم مربعات الأكواد السوداء + زر النسخ + عرض الصور
+    // تنسيق الرسائل: دعم جميع اللغات + مربعات الأكواد + زر النسخ
     // -------------------------------------------------------------
     const chatMessages = document.getElementById('chat-messages');
     const userInput = document.getElementById('user-input');
@@ -688,7 +700,7 @@
     let conversationMessages = [
       { 
         role: "system", 
-        content: "أنت Zeno AI، مساعد ذكي تقني ومبدع مطور حصرياً من قِبل استوديو NC. تحدث باللهجة العامية الدارجة والمريحة المناسبة للغة المستخدم. في البرمجة، ضع أي كود برمجي داخل علامات الكود الثلاثية (```). إذا سألك أحد عن مطورك أجب: 'من طورني هو استوديو NC'." 
+        content: "You are Zeno AI, an intelligent, creative, and multilingual AI assistant developed exclusively by NC Studio (استوديو NC). You fluently understand and support ALL languages in the world (Arabic, English, French, Spanish, Turkish, Kurdish, German, Russian, Japanese, etc.). Always detect the user's language and dialect automatically and respond naturally in the exact same language and tone. If the user writes in Arabic, reply in friendly natural Arabic; if in English or any other language, reply fluently in that language. In programming tasks, always wrap code inside triple backticks (```). If anyone asks who created or developed you, answer in their language that you were developed by NC Studio (من طورني هو استوديو NC)." 
       }
     ];
 
@@ -697,34 +709,43 @@
     }
 
     function formatMessageContent(text) {
-      const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
-      let formatted = text.replace(codeBlockRegex, (match, lang, code) => {
+      const codeBlocks = [];
+      const placeholderPrefix = "__ZENO_CODE_BLOCK_";
+
+      // استخراج الكود مؤقتاً لتفادي تداخل أسطر <br>
+      let formatted = text.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
         const languageLabel = lang ? lang.toUpperCase() : 'CODE';
         const escapedCode = escapeHTML(code.trim());
-        const encodedCode = encodeURIComponent(code.trim());
-        return `
+        const blockHtml = `
           <div class="code-block-wrapper">
             <div class="code-block-header">
               <span>${languageLabel}</span>
-              <button class="copy-code-btn" onclick="copyCodeToClipboard(this, '${encodedCode}')">نسخ الكود</button>
+              <button class="copy-code-btn" onclick="copyCodeToClipboard(this)">نسخ الكود</button>
             </div>
             <div class="code-block-content"><code>${escapedCode}</code></div>
           </div>
         `;
+        const index = codeBlocks.length;
+        codeBlocks.push(blockHtml);
+        return `${placeholderPrefix}${index}__`;
       });
 
       formatted = formatted.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+      formatted = formatted.replace(/\n/g, '<br>');
 
-      const parts = formatted.split(/(<div class="code-block-wrapper">[\s\S]*?<\/div>\s*<\/div>)/g);
-      return parts.map(part => {
-        if (part.startsWith('<div class="code-block-wrapper">')) return part;
-        return part.replace(/\n/g, '<br>');
-      }).join('');
+      codeBlocks.forEach((block, index) => {
+        formatted = formatted.replace(`${placeholderPrefix}${index}__`, block);
+      });
+
+      return formatted;
     }
 
-    function copyCodeToClipboard(btn, encodedCode) {
-      const decodedCode = decodeURIComponent(encodedCode);
-      navigator.clipboard.writeText(decodedCode).then(() => {
+    function copyCodeToClipboard(btn) {
+      const wrapper = btn.closest('.code-block-wrapper');
+      const codeElement = wrapper ? wrapper.querySelector('code') : null;
+      if (!codeElement) return;
+
+      navigator.clipboard.writeText(codeElement.innerText).then(() => {
         const originalText = btn.innerText;
         btn.innerText = "تم النسخ! ✓";
         btn.style.backgroundColor = "#16a34a";
@@ -738,6 +759,7 @@
     function appendMessage(role, text, imageUrl = null) {
       const msgDiv = document.createElement('div');
       msgDiv.className = `message ${role}`;
+      msgDiv.dir = "auto"; // ضبط اتجاه النص تلقائياً حسب اللغة (RTL أو LTR)
       
       if (text) {
         const textNode = document.createElement('div');
@@ -752,7 +774,7 @@
       if (imageUrl) {
         const img = document.createElement('img');
         img.src = imageUrl;
-        img.alt = "صورة مولدة";
+        img.alt = "صورة";
         msgDiv.appendChild(img);
       }
 
@@ -761,7 +783,10 @@
     }
 
     function isImageGenerationRequest(text) {
-      const keywords = ['ارسم', 'صمم صورة', 'تخيل صورة', 'اعمل صورة', 'اصنع صورة', 'توليد صورة', 'انشئ صورة', 'أنشئ صورة', 'draw', 'generate image', 'create image'];
+      const keywords = [
+        'ارسم', 'صمم صورة', 'تخيل صورة', 'اعمل صورة', 'اصنع صورة', 'توليد صورة', 'انشئ صورة', 'أنشئ صورة',
+        'draw', 'generate image', 'create image', 'paint', 'dessine', 'dibujar', 'resim çiz'
+      ];
       const lower = text.toLowerCase();
       return keywords.some(kw => lower.includes(kw));
     }
@@ -793,7 +818,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               messages: [
-                { role: "system", content: "You are an expert image prompt engineer. Translate and expand the user's image request into a vivid, detailed English prompt (max 25 words). Reply ONLY with the English prompt, nothing else." },
+                { role: "system", content: "You are an expert image prompt engineer. Translate and expand the user's image request from any language into a vivid, detailed English prompt (max 25 words). Reply ONLY with the English prompt, nothing else." },
                 { role: "user", content: text }
               ],
               model: chosenModel,
@@ -809,7 +834,7 @@
 
           const imgLoader = new Image();
           imgLoader.onload = () => {
-            appendMessage('assistant', "تفضل، رسمت لك هذه الصورة خصيصاً:", generatedImageUrl);
+            appendMessage('assistant', "✨ تفضل / Here is your generated image:", generatedImageUrl);
             orb.className = "orb";
             aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
             isProcessing = false;
@@ -832,12 +857,13 @@
         return;
       }
 
-      // حالة 2: محادثة نصية أو برمجية
-      conversationMessages.push({ role: "user", content: text });
-      await processAIResponse(false, false);
+      // حالة 2: محادثة نصية أو برمجية أو تحليل صورة
+      const userPrompt = text || "Describe and analyze this image in detail.";
+      conversationMessages.push({ role: "user", content: userPrompt });
+      await processAIResponse(false, Boolean(attachedImage), attachedImage);
     }
 
-    async function processAIResponse(shouldSpeak = false, hasImage = false) {
+    async function processAIResponse(shouldSpeak = false, hasImage = false, imageBase64 = null) {
       isProcessing = true;
       sendBtn.disabled = true;
       orb.className = "orb thinking";
@@ -853,7 +879,8 @@
           body: JSON.stringify({ 
             messages: recentMessages,
             model: chosenModel,
-            hasImage: false
+            hasImage: hasImage,
+            imageBase64: imageBase64
           })
         });
 
@@ -888,24 +915,40 @@
       }
     }
 
-    // التعرف الصوتي (Speech Recognition)
+    // -------------------------------------------------------------
+    // التعرف الصوتي والنطق متعدد اللغات (Multilingual Speech)
+    // -------------------------------------------------------------
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition;
     let isListening = false;
-    let manualStop = false;
+    let manualStop = true;
     let isAISpeaking = false;
-    let arabicVoice = null;
+    let availableVoices = [];
 
     function loadVoices() {
-      const voices = window.speechSynthesis.getVoices();
-      arabicVoice = voices.find(v => v.lang === 'ar-SA' || v.lang.startsWith('ar')) || voices[0];
+      availableVoices = window.speechSynthesis.getVoices();
     }
     window.speechSynthesis.onvoiceschanged = loadVoices;
     loadVoices();
 
+    // اكتشاف لغة النص تلقائياً لاختيار الصوت المناسب عند النطق
+    function detectSpeechLang(text) {
+      if (/[\u0600-\u06FF]/.test(text)) return 'ar-SA'; // العربية / الكردية / الفارسية
+      if (/[\u0400-\u04FF]/.test(text)) return 'ru-RU'; // الروسية
+      if (/[\u4E00-\u9FFF]/.test(text)) return 'zh-CN'; // الصينية
+      if (/[\u3040-\u30FF]/.test(text)) return 'ja-JP'; // اليابانية
+      if (/[\uAC00-\uD7AF]/.test(text)) return 'ko-KR'; // الكورية
+      if (/[ğüşöçıİĞÜŞÖÇ]/.test(text)) return 'tr-TR'; // التركية
+      if (/[éèêëàâîïôùûüçœæ]/i.test(text)) return 'fr-FR'; // الفرنسية
+      if (/[ñáéíóúü¿¡]/i.test(text)) return 'es-ES'; // الإسبانية
+      if (/[äöüß]/i.test(text)) return 'de-DE'; // الألمانية
+      return 'en-US'; // الإنجليزية كافتراضي للأحرف اللاتينية
+    }
+
     if (SpeechRecognition) {
       recognition = new SpeechRecognition();
-      recognition.lang = 'ar-SA';
+      // يدعم لغة المتصفح تلقائياً، وإذا كانت عربية يستخدم ar-SA
+      recognition.lang = navigator.language || 'ar-SA';
       recognition.continuous = true; 
       recognition.interimResults = false;
 
@@ -924,7 +967,7 @@
         appendMessage('user', userSpeech);
         conversationMessages.push({ role: "user", content: userSpeech });
         
-        try { recognition.stop(); } catch(e) {}
+        try { recognition.stop(); } catch (e) {}
         isListening = false;
         
         await processAIResponse(true, false);
@@ -954,13 +997,17 @@
         aiStatus.innerText = "تم إيقاف الاستماع.";
       } else {
         manualStop = false;
+        isListening = true;
+        orb.className = "orb listening";
+        aiStatus.innerText = "Zeno يستمع إليك... (تحدث الآن)";
         try { recognition.start(); } catch (e) {}
       }
     }
 
     function cleanTextForSpeech(text) {
       return text
-        .replace(/```[\s\S]*?```/g, ' الكود البرمجي موضح في الشاشة ')
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
         .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]|\uD800-\uDBFF[\uDC00-\uDFFF])/g, '')
         .replace(/[#_*~`@$%^&+=<>|\\/[\]{}()]/g, ' ')
         .replace(/-/g, ' ')
@@ -970,19 +1017,31 @@
 
     function speakZenoReply(text) {
       isAISpeaking = true; 
-      if (recognition) { try { recognition.stop(); } catch(e) {} }
+      if (recognition) { try { recognition.stop(); } catch (e) {} }
 
-      const cleanSpeechText = cleanTextForSpeech(text) || "أهلاً بك";
+      const cleanSpeechText = cleanTextForSpeech(text);
+      if (!cleanSpeechText) {
+        isAISpeaking = false;
+        return;
+      }
+
       window.speechSynthesis.cancel();
       
+      const detectedLang = detectSpeechLang(cleanSpeechText);
       const utterance = new SpeechSynthesisUtterance(cleanSpeechText);
-      utterance.lang = 'ar-SA';
-      utterance.rate = 0.95; 
+      utterance.lang = detectedLang;
+      utterance.rate = 0.98; 
 
-      if (!arabicVoice) loadVoices();
-      if (arabicVoice) utterance.voice = arabicVoice;
+      if (!availableVoices.length) loadVoices();
+      const langPrefix = detectedLang.split('-')[0];
+      const matchedVoice = availableVoices.find(v => v.lang === detectedLang) 
+                        || availableVoices.find(v => v.lang.startsWith(langPrefix));
+      if (matchedVoice) utterance.voice = matchedVoice;
 
-      utterance.onstart = () => { orb.className = "orb speaking"; aiStatus.innerText = "Zeno يتحدث..."; };
+      utterance.onstart = () => {
+        orb.className = "orb speaking";
+        aiStatus.innerText = "Zeno يتحدث...";
+      };
       utterance.onend = () => {
         isAISpeaking = false;
         orb.className = "orb";
