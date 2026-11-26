@@ -190,6 +190,28 @@
       flex-direction: column;
       overflow: hidden;
       margin-bottom: 15px;
+      position: relative;
+    }
+    .load-older-bar {
+      display: none;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: center;
+    }
+    .load-older-btn {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .load-older-btn:hover {
+      border-color: #f97316;
+      color: #f97316;
     }
     .chat-messages {
       flex: 1;
@@ -198,6 +220,7 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
+      contain: layout style;
     }
     .message {
       max-width: 85%;
@@ -223,9 +246,8 @@
       width: fit-content;
     }
     .message.collapsed-msg {
-      max-height: 170px;
+      max-height: 180px;
       overflow: hidden;
-      position: relative;
     }
     .toggle-expand-btn {
       margin-top: 8px;
@@ -252,6 +274,27 @@
       display: block;
       box-shadow: 0 4px 12px rgba(0,0,0,0.12);
     }
+
+    .scroll-bottom-btn {
+      display: none;
+      position: absolute;
+      bottom: 82px;
+      left: 20px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #111827;
+      color: #ffffff;
+      border: none;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: bold;
+      z-index: 25;
+      align-items: center;
+      justify-content: center;
+    }
+    .scroll-bottom-btn:hover { background: #f97316; }
 
     .code-block-wrapper {
       background-color: #1e1e1e;
@@ -540,7 +583,11 @@
   </div>
 
   <div class="chat-container">
+    <div class="load-older-bar" id="load-older-bar">
+      <button type="button" class="load-older-btn" id="btn-load-older">عرض رسائل أقدم</button>
+    </div>
     <div class="chat-messages" id="chat-messages"></div>
+    <button type="button" class="scroll-bottom-btn" id="scroll-bottom-btn" title="النزول لآخر رسالة">↓</button>
 
     <div class="image-preview-bar" id="image-preview-bar">
       <div class="image-preview-content">
@@ -602,8 +649,11 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const CHATS_TABLE = "chats_zeno_ai";
-    const MAX_STORED_TEXT_CHARS = 15000;
-    const MAX_CONTEXT_MSG_CHARS = 3500;
+    const MAX_STORED_TEXT_CHARS = 50000;
+    const MAX_CONTEXT_MSG_CHARS = 4500;
+    const INITIAL_VISIBLE_MESSAGES = 35;
+    const MAX_DOM_MESSAGES = 80;
+
     const WELCOME_MESSAGE = "أهلاً بك في Zeno AI! اسألني بأي لغة في العالم في البرمجة أو أي مجال، أو اطلب مني رسم أي صورة تخطر ببالك.";
     const SYSTEM_PROMPT = {
       role: "system",
@@ -613,8 +663,52 @@
     let currentUser = null;
     let currentSessionId = null;
     let conversationMessages = [SYSTEM_PROMPT];
+    let allLoadedRows = [];
+    let renderedStartIndex = 0;
     let isProcessing = false;
     let selectedImageBase64 = null;
+
+    const chatMessages = document.getElementById('chat-messages');
+    const userInput = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+    const orb = document.getElementById('aiOrb');
+    const aiStatus = document.getElementById('aiStatus');
+    const scrollBottomBtn = document.getElementById('scroll-bottom-btn');
+    const loadOlderBar = document.getElementById('load-older-bar');
+
+    function scrollToBottom(smooth = false) {
+      chatMessages.scrollTo({
+        top: chatMessages.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    }
+
+    chatMessages.addEventListener('scroll', () => {
+      const distanceFromBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight;
+      scrollBottomBtn.style.display = distanceFromBottom > 180 ? 'flex' : 'none';
+    });
+
+    scrollBottomBtn.addEventListener('click', () => scrollToBottom(true));
+
+    function updateLoadOlderButton() {
+      loadOlderBar.style.display = renderedStartIndex > 0 ? 'block' : 'none';
+    }
+
+    document.getElementById('btn-load-older').onclick = () => {
+      if (renderedStartIndex <= 0) return;
+      const prevHeight = chatMessages.scrollHeight;
+      const nextStart = Math.max(0, renderedStartIndex - 30);
+      const sliceToPrepend = allLoadedRows.slice(nextStart, renderedStartIndex);
+
+      const frag = document.createDocumentFragment();
+      sliceToPrepend.forEach(row => {
+        frag.appendChild(createMessageElement(row.role, row.content, row.image_url));
+      });
+      chatMessages.insertBefore(frag, chatMessages.firstChild);
+      renderedStartIndex = nextStart;
+      updateLoadOlderButton();
+      chatMessages.scrollTop = chatMessages.scrollHeight - prevHeight;
+    };
 
     function hasAccount() {
       return Boolean(currentUser && currentUser.username);
@@ -651,13 +745,33 @@
       }
     }
 
-    async function loadChatHistoryFromSupabase() {
-      const chatMessages = document.getElementById('chat-messages');
+    function renderWindowedHistory() {
       chatMessages.innerHTML = '';
+      if (!allLoadedRows.length) {
+        chatMessages.appendChild(createMessageElement('assistant', WELCOME_MESSAGE, null));
+        renderedStartIndex = 0;
+        updateLoadOlderButton();
+        return;
+      }
+
+      renderedStartIndex = Math.max(0, allLoadedRows.length - INITIAL_VISIBLE_MESSAGES);
+      const visibleSlice = allLoadedRows.slice(renderedStartIndex);
+      const frag = document.createDocumentFragment();
+      visibleSlice.forEach(row => {
+        frag.appendChild(createMessageElement(row.role, row.content, row.image_url));
+      });
+      chatMessages.appendChild(frag);
+      updateLoadOlderButton();
+      scrollToBottom(false);
+    }
+
+    async function loadChatHistoryFromSupabase() {
+      allLoadedRows = [];
+      renderedStartIndex = 0;
       conversationMessages = [SYSTEM_PROMPT];
 
       if (!hasAccount() || !currentSessionId) {
-        appendMessage('assistant', WELCOME_MESSAGE, null, false);
+        renderWindowedHistory();
         return;
       }
 
@@ -667,21 +781,16 @@
         .eq('session_id', currentSessionId)
         .eq('username', currentUser.username)
         .order('created_at', { ascending: true })
-        .limit(80);
+        .limit(400);
 
       if (error) {
         console.error('Supabase chats_zeno_ai load error:', error.message);
-        appendMessage('assistant', WELCOME_MESSAGE, null, false);
+        renderWindowedHistory();
         return;
       }
 
-      if (!data || data.length === 0) {
-        appendMessage('assistant', WELCOME_MESSAGE, null, false);
-        return;
-      }
-
-      data.forEach(row => {
-        appendMessage(row.role, row.content, row.image_url, false);
+      allLoadedRows = Array.isArray(data) ? data : [];
+      allLoadedRows.slice(-12).forEach(row => {
         if (row.role === 'user' || row.role === 'assistant') {
           conversationMessages.push({
             role: row.role,
@@ -689,6 +798,8 @@
           });
         }
       });
+
+      renderWindowedHistory();
     }
 
     async function openUserSessionsModal() {
@@ -702,7 +813,7 @@
         .select('session_id, content, created_at')
         .eq('username', currentUser.username)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(120);
 
       if (error || !data || data.length === 0) {
         sessionsList.innerHTML = '<div style="font-size:12px;color:#64748b;text-align:center;">لا توجد محادثات سابقة في Chats Zeno AI.</div>';
@@ -745,9 +856,10 @@
         await loadChatHistoryFromSupabase();
       } else {
         currentSessionId = null;
+        allLoadedRows = [];
+        renderedStartIndex = 0;
         conversationMessages = [SYSTEM_PROMPT];
-        document.getElementById('chat-messages').innerHTML = '';
-        appendMessage('assistant', WELCOME_MESSAGE, null, false);
+        renderWindowedHistory();
       }
     }
 
@@ -885,12 +997,6 @@
       document.getElementById('image-preview-bar').style.display = 'none';
     }
 
-    const chatMessages = document.getElementById('chat-messages');
-    const userInput = document.getElementById('user-input');
-    const sendBtn = document.getElementById('send-btn');
-    const orb = document.getElementById('aiOrb');
-    const aiStatus = document.getElementById('aiStatus');
-
     function escapeHTML(str) {
       return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
@@ -942,9 +1048,9 @@
       });
     }
 
-    function appendMessage(role, text, imageUrl = null, persist = true) {
+    function createMessageElement(role, text, imageUrl = null) {
       const rawText = String(text || '');
-      const isLongText = rawText.length > 420 || rawText.split('\n').length > 10;
+      const isLongText = rawText.length > 450 || rawText.split('\n').length > 10;
 
       const msgDiv = document.createElement('div');
       msgDiv.className = `message ${role}` + (isLongText ? ' collapsed-msg' : '');
@@ -964,6 +1070,7 @@
         const img = document.createElement('img');
         img.src = imageUrl;
         img.alt = "صورة";
+        img.loading = "lazy";
         msgDiv.appendChild(img);
       }
 
@@ -979,11 +1086,36 @@
         msgDiv.appendChild(expandBtn);
       }
 
-      chatMessages.appendChild(msgDiv);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return msgDiv;
+    }
 
-      if (persist && hasAccount() && (role === 'user' || role === 'assistant')) {
-        saveMessageToSupabase(role, rawText, imageUrl);
+    function appendMessage(role, text, imageUrl = null, persist = true) {
+      const rawText = String(text || '');
+      const msgDiv = createMessageElement(role, rawText, imageUrl);
+      chatMessages.appendChild(msgDiv);
+
+      while (chatMessages.children.length > MAX_DOM_MESSAGES) {
+        chatMessages.removeChild(chatMessages.firstChild);
+        renderedStartIndex++;
+      }
+      updateLoadOlderButton();
+      scrollToBottom(false);
+
+      if (persist && (role === 'user' || role === 'assistant')) {
+        allLoadedRows.push({ role, content: rawText, image_url: imageUrl, created_at: new Date().toISOString() });
+        if (hasAccount()) {
+          saveMessageToSupabase(role, rawText, imageUrl);
+        }
+      }
+    }
+
+    function pushContextMessage(role, content) {
+      conversationMessages.push({
+        role,
+        content: String(content || '').slice(0, MAX_CONTEXT_MSG_CHARS)
+      });
+      if (conversationMessages.length > 13) {
+        conversationMessages = [SYSTEM_PROMPT, ...conversationMessages.slice(-12)];
       }
     }
 
@@ -1004,6 +1136,7 @@
       if (!text && !attachedImage) return;
 
       userInput.value = '';
+      userInput.style.height = '46px';
       clearSelectedImage();
 
       const displayedUserText = text || "تحليل هذه الصورة";
@@ -1063,8 +1196,8 @@
         return;
       }
 
-      const userPrompt = (text || "Describe and analyze this image in detail.").slice(0, MAX_CONTEXT_MSG_CHARS);
-      conversationMessages.push({ role: "user", content: userPrompt });
+      const userPrompt = text || "Describe and analyze this image in detail.";
+      pushContextMessage("user", userPrompt);
       await processAIResponse(false, Boolean(attachedImage), attachedImage);
     }
 
@@ -1106,7 +1239,7 @@
 
         if (data.choices && data.choices.length > 0) {
           const aiReply = data.choices[0].message.content;
-          conversationMessages.push({ role: "assistant", content: String(aiReply || '').slice(0, MAX_CONTEXT_MSG_CHARS) });
+          pushContextMessage("assistant", aiReply);
           appendMessage('assistant', aiReply, null, true);
           orb.className = "orb";
           aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
@@ -1165,7 +1298,7 @@
         const userSpeech = event.results[event.results.length - 1][0].transcript;
 
         appendMessage('user', userSpeech, null, true);
-        conversationMessages.push({ role: "user", content: userSpeech });
+        pushContextMessage("user", userSpeech);
 
         try { recognition.stop(); } catch (e) {}
         isListening = false;
