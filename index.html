@@ -501,7 +501,7 @@
     <div class="profile-menu" id="profile-menu">
       <div class="user-name-info" id="user-name-info"></div>
       <button id="btn-new-chat">دردشة جديدة</button>
-      <button id="btn-history" style="display:none;">سجل محادثاتي</button>
+      <button id="btn-history" style="display:none;">Chats Zeno AI (السجل)</button>
       <button id="btn-show-login">تسجيل الدخول</button>
       <button id="btn-show-signup">إنشاء حساب جديد</button>
       <button id="btn-logout" style="display:none; color:#ef4444;">تسجيل الخروج</button>
@@ -566,7 +566,7 @@
 
   <div class="modal-overlay" id="history-modal">
     <div class="modal-card">
-      <h3>سجل محادثاتي</h3>
+      <h3>Chats Zeno AI</h3>
       <div class="sessions-list" id="sessions-list"></div>
       <button class="close-btn" id="history-close">إغلاق</button>
     </div>
@@ -579,6 +579,7 @@
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6dnRuZmRneW53Y3pya3dsd2hmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNDIxMTEsImV4cCI6MjEwNDcxODExMX0.w2hNlJ4SszyMBkUVjr1qiWNTTPxHMHkM9YOFtVP-pVI";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    const CHATS_TABLE = "chats_zeno_ai";
     const WELCOME_MESSAGE = "أهلاً بك في Zeno AI! اسألني بأي لغة في العالم في البرمجة أو أي مجال، أو اطلب مني رسم أي صورة تخطر ببالك.";
     const SYSTEM_PROMPT = {
       role: "system",
@@ -611,7 +612,7 @@
       const safeImageUrl = (imageUrl && imageUrl.length > 250000) ? null : imageUrl;
 
       const { error } = await supabaseClient
-        .from('chat_messages')
+        .from(CHATS_TABLE)
         .insert([{
           session_id: currentSessionId,
           username: currentUser.username,
@@ -621,7 +622,7 @@
         }]);
 
       if (error) {
-        console.error('Supabase chat save error:', error.message);
+        console.error('Supabase chats_zeno_ai save error:', error.message);
       }
     }
 
@@ -636,14 +637,14 @@
       }
 
       const { data, error } = await supabaseClient
-        .from('chat_messages')
+        .from(CHATS_TABLE)
         .select('*')
         .eq('session_id', currentSessionId)
         .eq('username', currentUser.username)
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('Supabase chat load error:', error.message);
+        console.error('Supabase chats_zeno_ai load error:', error.message);
         appendMessage('assistant', WELCOME_MESSAGE, null, false);
         return;
       }
@@ -668,14 +669,14 @@
       document.getElementById('history-modal').style.display = 'flex';
 
       const { data, error } = await supabaseClient
-        .from('chat_messages')
+        .from(CHATS_TABLE)
         .select('session_id, content, created_at')
         .eq('username', currentUser.username)
         .order('created_at', { ascending: false })
         .limit(100);
 
       if (error || !data || data.length === 0) {
-        sessionsList.innerHTML = '<div style="font-size:12px;color:#64748b;text-align:center;">لا توجد محادثات سابقة محفوظة.</div>';
+        sessionsList.innerHTML = '<div style="font-size:12px;color:#64748b;text-align:center;">لا توجد محادثات سابقة في Chats Zeno AI.</div>';
         return;
       }
 
@@ -1100,9 +1101,7 @@
       if (!recognition) return;
       try {
         recognition.start();
-      } catch (e) {
-        // تجاهل خطأ البدء المتكرر إذا كان شغالاً بالفعل
-      }
+      } catch (e) {}
     }
 
     if (SpeechRecognition) {
