@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zeno AI Assistant - NC Studio</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23f97316'/><text x='50' y='67' font-size='50' text-anchor='middle' fill='white' font-family='sans-serif'>Z</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
@@ -605,7 +606,7 @@
         </svg>
       </button>
 
-      <textarea id="user-input" placeholder="اكتب رسالتك بأي لغة أو اطلب رسم صورة..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTextMessage(); }"></textarea>
+      <textarea id="user-input" placeholder="اكتب رسالتك بأي لغة..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTextMessage(); }"></textarea>
       <button class="send-btn" id="send-btn" onclick="sendTextMessage()" title="إرسال">
         <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
@@ -654,7 +655,7 @@
     const INITIAL_VISIBLE_MESSAGES = 35;
     const MAX_DOM_MESSAGES = 80;
 
-    const WELCOME_MESSAGE = "أهلاً بك في Zeno AI! اسألني بأي لغة في العالم في البرمجة أو أي مجال، أو اطلب مني رسم أي صورة تخطر ببالك.";
+    const WELCOME_MESSAGE = "أهلاً بك في Zeno AI! اسألني بأي لغة في العالم في البرمجة أو أي مجال.";
     const SYSTEM_PROMPT = {
       role: "system",
       content: "You are Zeno AI, an intelligent, creative, and multilingual AI assistant developed exclusively by NC Studio (استوديو NC). You fluently understand and support ALL languages in the world (Arabic, English, French, Spanish, Turkish, Kurdish, German, Russian, Japanese, etc.). Always detect the user's language and dialect automatically and respond naturally in the exact same language and tone. If the user writes in Arabic, reply in friendly natural Arabic; if in English or any other language, reply fluently in that language. In programming tasks, always wrap code inside triple backticks (```). If anyone asks who created or developed you, answer in their language that you were developed by NC Studio (من طورني هو استوديو NC)."
@@ -1018,7 +1019,6 @@
         return `${placeholderPrefix}${index}__`;
       });
 
-      formatted = formatted.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
       formatted = formatted.replace(/\n/g, '<br>');
 
       codeBlocks.forEach((block, index) => {
@@ -1062,11 +1062,10 @@
         msgDiv.appendChild(textNode);
       }
 
-      if (imageUrl) {
+      if (imageUrl && /^data:image\/|^https?:\/\//i.test(imageUrl)) {
         const img = document.createElement('img');
         img.src = imageUrl;
         img.alt = "صورة";
-        img.loading = "lazy";
         msgDiv.appendChild(img);
       }
 
@@ -1115,15 +1114,6 @@
       }
     }
 
-    function isImageGenerationRequest(text) {
-      const keywords = [
-        'ارسم', 'صمم صورة', 'تخيل صورة', 'اعمل صورة', 'اصنع صورة', 'توليد صورة', 'انشئ صورة', 'أنشئ صورة',
-        'draw', 'generate image', 'create image', 'paint', 'dessine', 'dibujar', 'resim çiz'
-      ];
-      const lower = text.toLowerCase();
-      return keywords.some(kw => lower.includes(kw));
-    }
-
     async function sendTextMessage() {
       if (isProcessing) return;
       const text = userInput.value.trim();
@@ -1137,58 +1127,6 @@
 
       const displayedUserText = text || "تحليل هذه الصورة";
       appendMessage('user', displayedUserText, attachedImage, true);
-
-      const chosenModel = document.getElementById('modelSelect')?.value || 'auto';
-
-      if (!attachedImage && isImageGenerationRequest(text)) {
-        isProcessing = true;
-        sendBtn.disabled = true;
-        orb.className = "orb thinking";
-        aiStatus.innerText = "Zeno يبتكر وصف الصورة ويرسمها لك...";
-
-        try {
-          const promptRes = await fetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              messages: [
-                { role: "system", content: "You are an expert image prompt engineer. Translate and expand the user's image request from any language into a vivid, detailed English prompt (max 20 words). Reply ONLY with the English prompt, nothing else." },
-                { role: "user", content: text.slice(0, 400) }
-              ],
-              model: chosenModel,
-              hasImage: false
-            })
-          });
-
-          const promptData = await promptRes.json();
-          const englishPrompt = (promptData.choices?.[0]?.message?.content?.trim() || text).slice(0, 160);
-
-          const cleanPrompt = encodeURIComponent(englishPrompt);
-          const primaryImageUrl = `[https://image.pollinations.ai/prompt/$](https://image.pollinations.ai/prompt/$){cleanPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
-
-          const imgCheck = await fetch(primaryImageUrl, { method: 'GET' });
-          if (!imgCheck.ok) {
-            throw new Error(`Image server returned ${imgCheck.status}`);
-          }
-
-          const blob = await imgCheck.blob();
-          const objectUrl = URL.createObjectURL(blob);
-          const replyText = "✨ تفضل / Here is your generated image:";
-
-          appendMessage('assistant', replyText, objectUrl, false);
-          if (hasAccount()) {
-            saveMessageToSupabase('assistant', replyText, primaryImageUrl);
-          }
-        } catch (e) {
-          appendMessage('assistant', "⚠️ خدمة توليد الصور غير متاحة حالياً أو تعذر تحميل الصورة، جرّب وصفاً أقصر.", null, false);
-        } finally {
-          orb.className = "orb";
-          aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
-          isProcessing = false;
-          sendBtn.disabled = false;
-        }
-        return;
-      }
 
       const userPrompt = text || "Describe and analyze this image in detail.";
       pushContextMessage("user", userPrompt);
@@ -1334,7 +1272,6 @@
     function cleanTextForSpeech(text) {
       return text
         .replace(/```[\s\S]*?```/g, ' ')
-        .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
         .replace(/\p{Extended_Pictographic}/gu, '')
         .replace(/[#_*~`@$%^&+=<>|\\/[\]{}()]/g, ' ')
         .replace(/-/g, ' ')
