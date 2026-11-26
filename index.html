@@ -636,6 +636,7 @@
     const MAX_CONTEXT_MSG_CHARS = 3500;
     const INITIAL_VISIBLE_MESSAGES = 35;
     const MAX_DOM_MESSAGES = 80;
+    const SILENCE_TIMEOUT_MS = 2000;
 
     const WELCOME_MESSAGE = "Welcome to Zeno AI! Ask me anything about programming or any topic in any language.";
     const SYSTEM_PROMPT = {
@@ -1175,6 +1176,9 @@
     let manualStop = true;
     let isAISpeaking = false;
     let availableVoices = [];
+    let silenceTimer = null;
+    let latestTranscript = "";
+    let hasSpokenInSession = false;
 
     function loadVoices() {
       availableVoices = window.speechSynthesis.getVoices();
@@ -1190,6 +1194,43 @@
       return 'en-US';
     }
 
+    function clearSilenceTimer() {
+      if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+      }
+    }
+
+    function resetSilenceTimer() {
+      clearSilenceTimer();
+      if (!isListening || isAISpeaking || isProcessing) return;
+
+      silenceTimer = setTimeout(async () => {
+        if (!isListening || isAISpeaking || isProcessing) return;
+
+        const finalText = String(latestTranscript || '').trim();
+        clearSilenceTimer();
+        manualStop = true;
+        isListening = false;
+
+        try { recognition.stop(); } catch (e) {}
+
+        if (!finalText) {
+          orb.className = "orb";
+          aiStatus.innerText = "No speech heard. Click the orb and try again.";
+          return;
+        }
+
+        latestTranscript = "";
+        hasSpokenInSession = false;
+
+        appendMessage('user', finalText, null, true);
+        pushContextMessage("user", finalText);
+
+        await processAIResponse(true, false);
+      }, SILENCE_TIMEOUT_MS);
+    }
+
     function safeStartRecognition() {
       if (!recognition) return;
       try {
@@ -1200,51 +1241,68 @@
     if (SpeechRecognition) {
       recognition = new SpeechRecognition();
       recognition.lang = 'ar-SA';
-      recognition.interimResults = false;
+      recognition.continuous = true;
+      recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
-      recognition.onresult = async (event) => {
-        if (isAISpeaking || isProcessing) return;
-        const lastResult = event.results[event.results.length - 1];
-        const userSpeech = String(lastResult?.[0]?.transcript || '').trim();
+      recognition.onspeechstart = () => {
+        if (!isListening || isAISpeaking || isProcessing) return;
+        hasSpokenInSession = true;
+        resetSilenceTimer();
+      };
 
-        if (!userSpeech) {
-          aiStatus.innerText = "No speech detected. Speak clearly...";
-          return;
+      recognition.onresult = (event) => {
+        if (!isListening || isAISpeaking || isProcessing) return;
+
+        let combined = "";
+        for (let i = 0; i < event.results.length; i++) {
+          const piece = String(event.results[i]?.[0]?.transcript || '').trim();
+          if (piece) {
+            combined += (combined ? " " : "") + piece;
+          }
         }
 
-        try { recognition.stop(); } catch (e) {}
-        isListening = false;
-        manualStop = true;
-
-        appendMessage('user', userSpeech, null, true);
-        pushContextMessage("user", userSpeech);
-
-        await processAIResponse(true, false);
+        if (combined.trim()) {
+          latestTranscript = combined.trim();
+          hasSpokenInSession = true;
+          aiStatus.innerText = "Listening... (2s pause to send)";
+          resetSilenceTimer();
+        }
       };
 
       recognition.onerror = (event) => {
         if (event.error === 'no-speech') {
-          aiStatus.innerText = "No speech heard. Click the orb and try again.";
-        } else if (event.error === 'not-allowed' || event.error === 'audio-capture') {
+          if (hasSpokenInSession && latestTranscript.trim()) {
+            resetSilenceTimer();
+          }
+          return;
+        }
+
+        clearSilenceTimer();
+        if (event.error === 'not-allowed' || event.error === 'audio-capture') {
           manualStop = true;
           isListening = false;
+          latestTranscript = "";
+          hasSpokenInSession = false;
           orb.className = "orb";
           aiStatus.innerText = "Microphone access denied or unavailable.";
+        } else if (isListening && !manualStop && !isAISpeaking && !isProcessing) {
+          resetSilenceTimer();
         } else {
-          aiStatus.innerText = "Click the orb and speak...";
-        }
-        if (!isAISpeaking && !isProcessing) {
           orb.className = "orb";
+          aiStatus.innerText = "Click the orb and speak...";
         }
       };
 
       recognition.onend = () => {
         if (isListening && !manualStop && !isAISpeaking && !isProcessing) {
-          setTimeout(safeStartRecognition, 150);
-        } else if (!isAISpeaking && !isListening && !isProcessing) {
-          orb.className = "orb";
-          aiStatus.innerText = "Click the orb and speak...";
+          setTimeout(safeStartRecognition, 120);
+        } else {
+          clearSilenceTimer();
+          if (!isAISpeaking && !isListening && !isProcessing) {
+            orb.className = "orb";
+            aiStatus.innerText = "Click the orb and speak...";
+          }
         }
       };
     }
@@ -1261,16 +1319,22 @@
       }
 
       if (isListening) {
+        clearSilenceTimer();
         manualStop = true;
         isListening = false;
+        latestTranscript = "";
+        hasSpokenInSession = false;
         try { recognition.stop(); } catch (e) {}
         orb.className = "orb";
         aiStatus.innerText = "Listening stopped.";
       } else {
+        clearSilenceTimer();
         manualStop = false;
         isListening = true;
+        latestTranscript = "";
+        hasSpokenInSession = false;
         orb.className = "orb listening";
-        aiStatus.innerText = "Zeno is listening... (Speak now)";
+        aiStatus.innerText = "Zeno is listening... (2s pause to reply)";
         safeStartRecognition();
       }
     }
@@ -1286,6 +1350,7 @@
     }
 
     function speakZenoReply(text) {
+      clearSilenceTimer();
       isAISpeaking = true;
       if (recognition) { try { recognition.stop(); } catch (e) {} }
 
