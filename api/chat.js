@@ -33,6 +33,9 @@ const FALLBACK_MODELS = [
   "openai/gpt-oss-120b"
 ];
 
+const MAX_RETRIES_PER_KEY = 2;
+const RETRY_DELAYS_MS = [1500, 3000];
+
 let roundRobinIndex = 0;
 
 function sleep(ms) {
@@ -135,62 +138,75 @@ export default async function handler(req, res) {
 
       for (let i = 0; i < keysToTry.length; i++) {
         const apiKey = keysToTry[i];
-        try {
-          const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-              model: modelName,
-              messages: groqMessages,
-              max_tokens: 900
-            })
-          });
 
-          const data = await response.json().catch(() => ({}));
+        for (let retry = 0; retry <= MAX_RETRIES_PER_KEY; retry++) {
+          try {
+            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${apiKey}`
+              },
+              body: JSON.stringify({
+                model: modelName,
+                messages: groqMessages,
+                max_tokens: 900
+              })
+            });
 
-          if (response.ok) {
-            return res.status(200).json(data);
-          }
+            const data = await response.json().catch(() => ({}));
 
-          lastStatus = response.status;
-          lastErrorData =
-            response.status === 429
-              ? { error: "High traffic right now. Please wait a few seconds and try again." }
-              : data;
+            if (response.ok) {
+              return res.status(200).json(data);
+            }
 
-          const errMsg = String(data?.error?.message || data?.error || "").toLowerCase();
-          const isModelUnavailable =
-            errMsg.includes("does not exist") ||
-            errMsg.includes("do not have access") ||
-            errMsg.includes("model");
+            lastStatus = response.status;
+            lastErrorData =
+              response.status === 429
+                ? { error: "High traffic right now. Please wait a few seconds and try again." }
+                : data;
 
-          if (isModelUnavailable) {
-            shouldTryAnotherModel = true;
+            const errMsg = String(data?.error?.message || data?.error || "").toLowerCase();
+            const isModelUnavailable =
+              errMsg.includes("does not exist") ||
+              errMsg.includes("do not have access") ||
+              errMsg.includes("model");
+
+            if (isModelUnavailable) {
+              shouldTryAnotherModel = true;
+              break;
+            }
+
+            const isTransient = response.status === 429 || response.status >= 500;
+            if (isTransient && retry < MAX_RETRIES_PER_KEY) {
+              await sleep(RETRY_DELAYS_MS[retry] || 1500);
+              continue;
+            }
+
+            if (isTransient) {
+              if (i < keysToTry.length - 1) {
+                await sleep(250);
+              }
+              break;
+            }
+
+            return res.status(lastStatus).json(lastErrorData);
+          } catch (fetchErr) {
+            lastStatus = 502;
+            lastErrorData = { error: "Temporary network error. Please try again." };
+            if (retry < MAX_RETRIES_PER_KEY) {
+              await sleep(RETRY_DELAYS_MS[retry] || 1500);
+              continue;
+            }
+            if (i < keysToTry.length - 1) {
+              await sleep(200);
+            }
             break;
           }
+        }
 
-          if (response.status === 429) {
-            if (i < keysToTry.length - 1) {
-              await sleep(250);
-              continue;
-            }
-          } else if (response.status >= 500) {
-            if (i < keysToTry.length - 1) {
-              await sleep(150);
-              continue;
-            }
-          } else {
-            return res.status(lastStatus).json(lastErrorData);
-          }
-        } catch (fetchErr) {
-          lastStatus = 502;
-          lastErrorData = { error: "Temporary network error. Please try again." };
-          if (i < keysToTry.length - 1) {
-            await sleep(150);
-          }
+        if (shouldTryAnotherModel) {
+          break;
         }
       }
 
