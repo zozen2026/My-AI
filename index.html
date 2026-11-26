@@ -222,6 +222,28 @@
       border-right: 4px solid #4285F4;
       width: fit-content;
     }
+    .message.collapsed-msg {
+      max-height: 170px;
+      overflow: hidden;
+      position: relative;
+    }
+    .toggle-expand-btn {
+      margin-top: 8px;
+      background: rgba(15, 23, 42, 0.14);
+      color: inherit;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: inline-block;
+    }
+    .message.assistant .toggle-expand-btn {
+      border-color: rgba(15, 23, 42, 0.2);
+      background: #e2e8f0;
+      color: #0f172a;
+    }
     .message img {
       max-width: 100%;
       max-height: 350px;
@@ -580,6 +602,8 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const CHATS_TABLE = "chats_zeno_ai";
+    const MAX_STORED_TEXT_CHARS = 15000;
+    const MAX_CONTEXT_MSG_CHARS = 3500;
     const WELCOME_MESSAGE = "أهلاً بك في Zeno AI! اسألني بأي لغة في العالم في البرمجة أو أي مجال، أو اطلب مني رسم أي صورة تخطر ببالك.";
     const SYSTEM_PROMPT = {
       role: "system",
@@ -609,6 +633,7 @@
 
     async function saveMessageToSupabase(role, content, imageUrl = null) {
       if (!hasAccount() || !currentSessionId) return;
+      const safeContent = String(content || '').slice(0, MAX_STORED_TEXT_CHARS);
       const safeImageUrl = (imageUrl && imageUrl.length > 250000) ? null : imageUrl;
 
       const { error } = await supabaseClient
@@ -617,7 +642,7 @@
           session_id: currentSessionId,
           username: currentUser.username,
           role,
-          content: content || '',
+          content: safeContent,
           image_url: safeImageUrl
         }]);
 
@@ -641,7 +666,8 @@
         .select('*')
         .eq('session_id', currentSessionId)
         .eq('username', currentUser.username)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(80);
 
       if (error) {
         console.error('Supabase chats_zeno_ai load error:', error.message);
@@ -657,7 +683,10 @@
       data.forEach(row => {
         appendMessage(row.role, row.content, row.image_url, false);
         if (row.role === 'user' || row.role === 'assistant') {
-          conversationMessages.push({ role: row.role, content: row.content || '' });
+          conversationMessages.push({
+            role: row.role,
+            content: String(row.content || '').slice(0, MAX_CONTEXT_MSG_CHARS)
+          });
         }
       });
     }
@@ -685,7 +714,7 @@
         if (!map.has(row.session_id)) {
           map.set(row.session_id, {
             sessionId: row.session_id,
-            preview: (row.content || 'محادثة').slice(0, 45),
+            preview: String(row.content || 'محادثة').replace(/\s+/g, ' ').trim().slice(0, 45) || 'محادثة',
             createdAt: row.created_at
           });
         }
@@ -914,16 +943,19 @@
     }
 
     function appendMessage(role, text, imageUrl = null, persist = true) {
+      const rawText = String(text || '');
+      const isLongText = rawText.length > 420 || rawText.split('\n').length > 10;
+
       const msgDiv = document.createElement('div');
-      msgDiv.className = `message ${role}`;
+      msgDiv.className = `message ${role}` + (isLongText ? ' collapsed-msg' : '');
       msgDiv.dir = "auto";
 
-      if (text) {
+      if (rawText) {
         const textNode = document.createElement('div');
         if (role === 'assistant') {
-          textNode.innerHTML = formatMessageContent(text);
+          textNode.innerHTML = formatMessageContent(rawText);
         } else {
-          textNode.innerText = text;
+          textNode.innerText = rawText;
         }
         msgDiv.appendChild(textNode);
       }
@@ -935,11 +967,23 @@
         msgDiv.appendChild(img);
       }
 
+      if (isLongText) {
+        const expandBtn = document.createElement('button');
+        expandBtn.type = 'button';
+        expandBtn.className = 'toggle-expand-btn';
+        expandBtn.innerText = 'عرض النص الكامل';
+        expandBtn.onclick = () => {
+          const isCollapsed = msgDiv.classList.toggle('collapsed-msg');
+          expandBtn.innerText = isCollapsed ? 'عرض النص الكامل' : 'تصغير النص';
+        };
+        msgDiv.appendChild(expandBtn);
+      }
+
       chatMessages.appendChild(msgDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
 
       if (persist && hasAccount() && (role === 'user' || role === 'assistant')) {
-        saveMessageToSupabase(role, text || '', imageUrl);
+        saveMessageToSupabase(role, rawText, imageUrl);
       }
     }
 
@@ -980,7 +1024,7 @@
             body: JSON.stringify({
               messages: [
                 { role: "system", content: "You are an expert image prompt engineer. Translate and expand the user's image request from any language into a vivid, detailed English prompt (max 25 words). Reply ONLY with the English prompt, nothing else." },
-                { role: "user", content: text }
+                { role: "user", content: text.slice(0, 600) }
               ],
               model: chosenModel,
               hasImage: false
@@ -988,7 +1032,7 @@
           });
 
           const promptData = await promptRes.json();
-          const englishPrompt = promptData.choices?.[0]?.message?.content?.trim() || text;
+          const englishPrompt = (promptData.choices?.[0]?.message?.content?.trim() || text).slice(0, 220);
 
           const cleanPrompt = encodeURIComponent(englishPrompt);
           const generatedImageUrl = `[https://image.pollinations.ai/prompt/$](https://image.pollinations.ai/prompt/$){cleanPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
@@ -1019,7 +1063,7 @@
         return;
       }
 
-      const userPrompt = text || "Describe and analyze this image in detail.";
+      const userPrompt = (text || "Describe and analyze this image in detail.").slice(0, MAX_CONTEXT_MSG_CHARS);
       conversationMessages.push({ role: "user", content: userPrompt });
       await processAIResponse(false, Boolean(attachedImage), attachedImage);
     }
@@ -1030,7 +1074,13 @@
       orb.className = "orb thinking";
       aiStatus.innerText = "Zeno يفكر في الإجابة...";
 
-      const recentMessages = [conversationMessages[0], ...conversationMessages.slice(-8)];
+      const recentMessages = [
+        conversationMessages[0],
+        ...conversationMessages.slice(-6).map(m => ({
+          role: m.role,
+          content: String(m.content || '').slice(0, MAX_CONTEXT_MSG_CHARS)
+        }))
+      ];
       const chosenModel = document.getElementById('modelSelect')?.value || 'auto';
 
       try {
@@ -1056,7 +1106,7 @@
 
         if (data.choices && data.choices.length > 0) {
           const aiReply = data.choices[0].message.content;
-          conversationMessages.push({ role: "assistant", content: aiReply });
+          conversationMessages.push({ role: "assistant", content: String(aiReply || '').slice(0, MAX_CONTEXT_MSG_CHARS) });
           appendMessage('assistant', aiReply, null, true);
           orb.className = "orb";
           aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
