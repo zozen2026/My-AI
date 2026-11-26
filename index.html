@@ -4,23 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zeno AI Assistant - NC Studio</title>
-  <!-- استدعاء مكتبة Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { 
-      background-color: #f8fafc; 
-      color: #111; 
-      display: flex; 
-      flex-direction: column; 
-      align-items: center; 
-      height: 100vh; 
-      padding: 20px; 
-      position: relative; 
+    body {
+      background-color: #f8fafc;
+      color: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      padding: 20px;
+      position: relative;
       overflow: hidden;
     }
 
-    /* حاوية البروفايل في أعلى اليسار */
     .profile-wrapper {
       position: absolute;
       top: 20px;
@@ -67,7 +65,6 @@
       white-space: nowrap;
     }
 
-    /* القائمة المنبثقة للحساب */
     .profile-menu {
       display: none;
       position: absolute;
@@ -77,7 +74,7 @@
       border: 1px solid #e4e4e7;
       border-radius: 12px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-      width: 200px;
+      width: 220px;
       z-index: 100;
       overflow: hidden;
     }
@@ -102,7 +99,6 @@
     }
     .profile-menu button:hover { background: #f4f4f5; }
 
-    /* قائمة اختيار النماذج في أعلى اليمين */
     .model-selector-wrapper {
       position: absolute;
       top: 20px;
@@ -128,17 +124,15 @@
       max-width: 140px;
     }
 
-    /* الشعار */
-    .logo { 
-      font-size: 2.2rem; 
-      font-weight: 900; 
-      margin-bottom: 8px; 
-      letter-spacing: -1px; 
+    .logo {
+      font-size: 2.2rem;
+      font-weight: 900;
+      margin-bottom: 8px;
+      letter-spacing: -1px;
       color: #4285F4;
     }
     .logo span.o-orange { color: #f97316; }
 
-    /* قسم Zeno AI الصوتي والكرة النيون */
     .zeno-ai-section {
       display: flex;
       flex-direction: column;
@@ -184,7 +178,6 @@
       text-align: center;
     }
 
-    /* حاوية المحادثة */
     .chat-container {
       flex: 1;
       width: 100%;
@@ -238,7 +231,6 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.12);
     }
 
-    /* تنسيق مربعات الأكواد السوداء وزر النسخ */
     .code-block-wrapper {
       background-color: #1e1e1e;
       color: #f8f8f2;
@@ -280,7 +272,6 @@
       white-space: pre;
     }
 
-    /* معاينة الصورة المرفقة قبل الإرسال */
     .image-preview-bar {
       display: none;
       padding: 8px 16px;
@@ -321,7 +312,6 @@
       justify-content: center;
     }
 
-    /* شريط كتابة الرسائل في الأسفل */
     .chat-input-container {
       padding: 12px 16px;
       background: #ffffff;
@@ -385,7 +375,6 @@
     .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .send-btn svg { width: 20px; height: 20px; fill: #fff; transform: rotate(180deg); }
 
-    /* النوافذ المنبثقة */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -399,11 +388,12 @@
       background: #ffffff;
       padding: 24px;
       border-radius: 16px;
-      width: 320px;
+      width: 340px;
+      max-width: 92vw;
       border: 1px solid #e4e4e7;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     }
     .modal-card h3 { color: #f97316; text-align: center; font-size: 18px; }
@@ -426,6 +416,31 @@
     }
     .modal-card button.submit-btn:hover { background: #ea580c; }
     .modal-card .close-btn { background: transparent; color: #71717a; border: none; cursor: pointer; font-size: 12px; text-align: center; }
+
+    .sessions-list {
+      max-height: 240px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .session-item {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      text-align: right;
+      cursor: pointer;
+      font-size: 12px;
+      color: #1e293b;
+      transition: all 0.15s;
+    }
+    .session-item:hover, .session-item.active {
+      border-color: #f97316;
+      background: #fff7ed;
+      color: #9a3412;
+      font-weight: bold;
+    }
 
     .watermark-nc {
       position: fixed;
@@ -461,7 +476,6 @@
 </head>
 <body>
 
-  <!-- قائمة اختيار النماذج في أعلى اليمين -->
   <div class="model-selector-wrapper" title="اختر نموذج الذكاء الاصطناعي">
     <span>⚡</span>
     <select id="modelSelect">
@@ -474,7 +488,6 @@
     </select>
   </div>
 
-  <!-- حاوية البروفايل -->
   <div class="profile-wrapper" id="profile-icon" title="الملف الشخصي">
     <div class="profile-avatar-container">
       <div class="profile-avatar-img">
@@ -487,30 +500,26 @@
 
     <div class="profile-menu" id="profile-menu">
       <div class="user-name-info" id="user-name-info"></div>
+      <button id="btn-new-chat">دردشة جديدة</button>
+      <button id="btn-history" style="display:none;">سجل محادثاتي</button>
       <button id="btn-show-login">تسجيل الدخول</button>
       <button id="btn-show-signup">إنشاء حساب جديد</button>
       <button id="btn-logout" style="display:none; color:#ef4444;">تسجيل الخروج</button>
     </div>
   </div>
 
-  <!-- الشعار -->
   <div class="logo">
     Zen<span class="o-orange">o</span> AI
   </div>
 
-  <!-- قسم الكرة النيون الصوتية -->
   <div class="zeno-ai-section">
     <div class="orb" id="aiOrb" onclick="startZenoListening()" title="اضغط وتحدث صوتياً مع Zeno"></div>
     <div class="ai-status-text" id="aiStatus">اضغط على الكرة وتحدث صوتياً...</div>
   </div>
 
-  <!-- صندوق المحادثة -->
   <div class="chat-container">
-    <div class="chat-messages" id="chat-messages">
-      <div class="message assistant">أهلاً بك في Zeno AI! اسألني بأي لغة في العالم في البرمجة أو أي مجال، أو اطلب مني رسم أي صورة تخطر ببالك.</div>
-    </div>
+    <div class="chat-messages" id="chat-messages"></div>
 
-    <!-- شريط معاينة الصورة المختارة -->
     <div class="image-preview-bar" id="image-preview-bar">
       <div class="image-preview-content">
         <img id="preview-img-thumb" src="" alt="معاينة الصورة">
@@ -518,9 +527,8 @@
       </div>
       <button class="remove-img-btn" onclick="clearSelectedImage()" title="إزالة الصورة">×</button>
     </div>
-    
+
     <div class="chat-input-container">
-      <!-- زر الكاميرا ورفع الصور -->
       <input type="file" id="image-input" accept="image/*" capture="environment" style="display: none;" onchange="handleImageUpload(event)">
       <button class="camera-btn" onclick="document.getElementById('image-input').click()" title="التقاط أو إرفاق صورة">
         <svg viewBox="0 0 24 24">
@@ -535,7 +543,6 @@
     </div>
   </div>
 
-  <!-- نوافذ الحسابات -->
   <div class="modal-overlay" id="login-modal">
     <div class="modal-card">
       <h3>تسجيل الدخول - Zeno</h3>
@@ -557,27 +564,169 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="history-modal">
+    <div class="modal-card">
+      <h3>سجل محادثاتي</h3>
+      <div class="sessions-list" id="sessions-list"></div>
+      <button class="close-btn" id="history-close">إغلاق</button>
+    </div>
+  </div>
+
   <div class="watermark-nc">From NC©</div>
 
   <script>
-    // التحقق من الحساب عند التحميل
-    window.addEventListener('DOMContentLoaded', () => {
-      const savedUser = localStorage.getItem('zeno_current_user');
-      if (savedUser) {
-        try { updateUIAuthState(JSON.parse(savedUser)); } catch (e) {}
-      }
-    });
-
     const SUPABASE_URL = "https://lzvtnfdgynwczrkwlwhf.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6dnRuZmRneW53Y3pya3dsd2hmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNDIxMTEsImV4cCI6MjEwNDcxODExMX0.w2hNlJ4SszyMBkUVjr1qiWNTTPxHMHkM9YOFtVP-pVI";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // إدارة البروفايل
+    const WELCOME_MESSAGE = "أهلاً بك في Zeno AI! اسألني بأي لغة في العالم في البرمجة أو أي مجال، أو اطلب مني رسم أي صورة تخطر ببالك.";
+    const SYSTEM_PROMPT = {
+      role: "system",
+      content: "You are Zeno AI, an intelligent, creative, and multilingual AI assistant developed exclusively by NC Studio (استوديو NC). You fluently understand and support ALL languages in the world (Arabic, English, French, Spanish, Turkish, Kurdish, German, Russian, Japanese, etc.). Always detect the user's language and dialect automatically and respond naturally in the exact same language and tone. If the user writes in Arabic, reply in friendly natural Arabic; if in English or any other language, reply fluently in that language. In programming tasks, always wrap code inside triple backticks (```). If anyone asks who created or developed you, answer in their language that you were developed by NC Studio (من طورني هو استوديو NC)."
+    };
+
+    let currentUser = null;
+    let currentSessionId = null;
+    let conversationMessages = [SYSTEM_PROMPT];
+    let isProcessing = false;
+    let selectedImageBase64 = null;
+
+    function hasAccount() {
+      return Boolean(currentUser && currentUser.username);
+    }
+
+    function resolveAccountSessionId(user) {
+      if (!user || !user.username) return null;
+      const key = 'zeno_user_session_' + user.username;
+      let sid = localStorage.getItem(key);
+      if (!sid) {
+        sid = 'user_' + user.username + '_' + Date.now();
+        localStorage.setItem(key, sid);
+      }
+      return sid;
+    }
+
+    async function saveMessageToSupabase(role, content, imageUrl = null) {
+      if (!hasAccount() || !currentSessionId) return;
+      const safeImageUrl = (imageUrl && imageUrl.length > 250000) ? null : imageUrl;
+
+      const { error } = await supabaseClient
+        .from('chat_messages')
+        .insert([{
+          session_id: currentSessionId,
+          username: currentUser.username,
+          role,
+          content: content || '',
+          image_url: safeImageUrl
+        }]);
+
+      if (error) {
+        console.error('Supabase chat save error:', error.message);
+      }
+    }
+
+    async function loadChatHistoryFromSupabase() {
+      const chatMessages = document.getElementById('chat-messages');
+      chatMessages.innerHTML = '';
+      conversationMessages = [SYSTEM_PROMPT];
+
+      if (!hasAccount() || !currentSessionId) {
+        appendMessage('assistant', WELCOME_MESSAGE, null, false);
+        return;
+      }
+
+      const { data, error } = await supabaseClient
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', currentSessionId)
+        .eq('username', currentUser.username)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Supabase chat load error:', error.message);
+        appendMessage('assistant', WELCOME_MESSAGE, null, false);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        appendMessage('assistant', WELCOME_MESSAGE, null, false);
+        return;
+      }
+
+      data.forEach(row => {
+        appendMessage(row.role, row.content, row.image_url, false);
+        if (row.role === 'user' || row.role === 'assistant') {
+          conversationMessages.push({ role: row.role, content: row.content || '' });
+        }
+      });
+    }
+
+    async function openUserSessionsModal() {
+      if (!hasAccount()) return;
+      const sessionsList = document.getElementById('sessions-list');
+      sessionsList.innerHTML = '<div style="font-size:12px;color:#64748b;text-align:center;">جاري التحميل...</div>';
+      document.getElementById('history-modal').style.display = 'flex';
+
+      const { data, error } = await supabaseClient
+        .from('chat_messages')
+        .select('session_id, content, created_at')
+        .eq('username', currentUser.username)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error || !data || data.length === 0) {
+        sessionsList.innerHTML = '<div style="font-size:12px;color:#64748b;text-align:center;">لا توجد محادثات سابقة محفوظة.</div>';
+        return;
+      }
+
+      const map = new Map();
+      data.forEach(row => {
+        if (!map.has(row.session_id)) {
+          map.set(row.session_id, {
+            sessionId: row.session_id,
+            preview: (row.content || 'محادثة').slice(0, 45),
+            createdAt: row.created_at
+          });
+        }
+      });
+
+      sessionsList.innerHTML = '';
+      map.forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'session-item' + (item.sessionId === currentSessionId ? ' active' : '');
+        const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar') : '';
+        btn.innerHTML = `<div>${escapeHTML(item.preview)}</div><div style="font-size:10px;color:#64748b;margin-top:2px;">${dateStr}</div>`;
+        btn.onclick = async () => {
+          currentSessionId = item.sessionId;
+          localStorage.setItem('zeno_user_session_' + currentUser.username, currentSessionId);
+          document.getElementById('history-modal').style.display = 'none';
+          await loadChatHistoryFromSupabase();
+        };
+        sessionsList.appendChild(btn);
+      });
+    }
+
+    async function startNewChatSession() {
+      if (hasAccount()) {
+        const newSid = 'user_' + currentUser.username + '_' + Date.now();
+        localStorage.setItem('zeno_user_session_' + currentUser.username, newSid);
+        currentSessionId = newSid;
+        await loadChatHistoryFromSupabase();
+      } else {
+        currentSessionId = null;
+        conversationMessages = [SYSTEM_PROMPT];
+        document.getElementById('chat-messages').innerHTML = '';
+        appendMessage('assistant', WELCOME_MESSAGE, null, false);
+      }
+    }
+
     const profileIcon = document.getElementById('profile-icon');
     const profileMenu = document.getElementById('profile-menu');
     const userNameInfo = document.getElementById('user-name-info');
     const loginModal = document.getElementById('login-modal');
     const signupModal = document.getElementById('signup-modal');
+    const historyModal = document.getElementById('history-modal');
 
     profileIcon.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -585,14 +734,23 @@
     });
     document.addEventListener('click', () => { profileMenu.style.display = 'none'; });
 
+    document.getElementById('btn-new-chat').onclick = async () => {
+      profileMenu.style.display = 'none';
+      await startNewChatSession();
+    };
+    document.getElementById('btn-history').onclick = async () => {
+      profileMenu.style.display = 'none';
+      await openUserSessionsModal();
+    };
     document.getElementById('btn-show-login').onclick = () => { loginModal.style.display = 'flex'; };
     document.getElementById('btn-show-signup').onclick = () => { signupModal.style.display = 'flex'; };
     document.getElementById('login-close').onclick = () => { loginModal.style.display = 'none'; };
     document.getElementById('signup-close').onclick = () => { signupModal.style.display = 'none'; };
+    document.getElementById('history-close').onclick = () => { historyModal.style.display = 'none'; };
 
     document.getElementById('signup-submit').onclick = async () => {
-      let username = document.getElementById('signup-username').value.trim();
-      let accountName = document.getElementById('signup-accountname').value.trim() || username;
+      const username = document.getElementById('signup-username').value.trim();
+      const accountName = document.getElementById('signup-accountname').value.trim() || username;
       const password = document.getElementById('signup-password').value;
       if (!username || !password) return alert('يرجى ملء الحقول');
 
@@ -606,12 +764,12 @@
         alert('تم إنشاء الحساب بنجاح!');
         signupModal.style.display = 'none';
         localStorage.setItem('zeno_current_user', JSON.stringify(data[0]));
-        updateUIAuthState(data[0]);
+        await updateUIAuthState(data[0]);
       }
     };
 
     document.getElementById('login-submit').onclick = async () => {
-      let username = document.getElementById('login-username').value.trim();
+      const username = document.getElementById('login-username').value.trim();
       const password = document.getElementById('login-password').value;
       const { data, error } = await supabaseClient
         .from('accounts')
@@ -622,38 +780,48 @@
       if (error || !data || data.length === 0) alert('فشل تسجيل الدخول');
       else {
         localStorage.setItem('zeno_current_user', JSON.stringify(data[0]));
-        updateUIAuthState(data[0]);
+        await updateUIAuthState(data[0]);
         alert('أهلاً بك!');
         loginModal.style.display = 'none';
       }
     };
 
-    document.getElementById('btn-logout').onclick = () => {
+    document.getElementById('btn-logout').onclick = async () => {
       localStorage.removeItem('zeno_current_user');
-      updateUIAuthState(null);
+      await updateUIAuthState(null);
     };
 
-    function updateUIAuthState(user) {
+    async function updateUIAuthState(user) {
+      currentUser = user || null;
       if (user) {
         document.getElementById('display-account-name').innerText = user.account_name || user.username;
         userNameInfo.textContent = `الحساب: ${user.account_name || user.username}`;
         userNameInfo.style.display = 'block';
+        document.getElementById('btn-history').style.display = 'block';
         document.getElementById('btn-show-login').style.display = 'none';
         document.getElementById('btn-show-signup').style.display = 'none';
         document.getElementById('btn-logout').style.display = 'block';
+        currentSessionId = resolveAccountSessionId(currentUser);
       } else {
         document.getElementById('display-account-name').innerText = 'زائر';
         userNameInfo.style.display = 'none';
+        document.getElementById('btn-history').style.display = 'none';
         document.getElementById('btn-show-login').style.display = 'block';
         document.getElementById('btn-show-signup').style.display = 'block';
         document.getElementById('btn-logout').style.display = 'none';
+        currentSessionId = null;
       }
+      await loadChatHistoryFromSupabase();
     }
 
-    // -------------------------------------------------------------
-    // إدارة الصور والكاميرا
-    // -------------------------------------------------------------
-    let selectedImageBase64 = null;
+    window.addEventListener('DOMContentLoaded', async () => {
+      const savedUser = localStorage.getItem('zeno_current_user');
+      let parsedUser = null;
+      if (savedUser) {
+        try { parsedUser = JSON.parse(savedUser); } catch (e) {}
+      }
+      await updateUIAuthState(parsedUser);
+    });
 
     function handleImageUpload(event) {
       const file = event.target.files[0];
@@ -687,32 +855,20 @@
       document.getElementById('image-preview-bar').style.display = 'none';
     }
 
-    // -------------------------------------------------------------
-    // تنسيق الرسائل: دعم جميع اللغات + مربعات الأكواد + زر النسخ
-    // -------------------------------------------------------------
     const chatMessages = document.getElementById('chat-messages');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
     const orb = document.getElementById('aiOrb');
     const aiStatus = document.getElementById('aiStatus');
-    let isProcessing = false;
-
-    let conversationMessages = [
-      { 
-        role: "system", 
-        content: "You are Zeno AI, an intelligent, creative, and multilingual AI assistant developed exclusively by NC Studio (استوديو NC). You fluently understand and support ALL languages in the world (Arabic, English, French, Spanish, Turkish, Kurdish, German, Russian, Japanese, etc.). Always detect the user's language and dialect automatically and respond naturally in the exact same language and tone. If the user writes in Arabic, reply in friendly natural Arabic; if in English or any other language, reply fluently in that language. In programming tasks, always wrap code inside triple backticks (```). If anyone asks who created or developed you, answer in their language that you were developed by NC Studio (من طورني هو استوديو NC)." 
-      }
-    ];
 
     function escapeHTML(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     function formatMessageContent(text) {
       const codeBlocks = [];
       const placeholderPrefix = "__ZENO_CODE_BLOCK_";
 
-      // استخراج الكود مؤقتاً لتفادي تداخل أسطر <br>
       let formatted = text.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
         const languageLabel = lang ? lang.toUpperCase() : 'CODE';
         const escapedCode = escapeHTML(code.trim());
@@ -756,11 +912,11 @@
       });
     }
 
-    function appendMessage(role, text, imageUrl = null) {
+    function appendMessage(role, text, imageUrl = null, persist = true) {
       const msgDiv = document.createElement('div');
       msgDiv.className = `message ${role}`;
-      msgDiv.dir = "auto"; // ضبط اتجاه النص تلقائياً حسب اللغة (RTL أو LTR)
-      
+      msgDiv.dir = "auto";
+
       if (text) {
         const textNode = document.createElement('div');
         if (role === 'assistant') {
@@ -780,6 +936,10 @@
 
       chatMessages.appendChild(msgDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      if (persist && hasAccount() && (role === 'user' || role === 'assistant')) {
+        saveMessageToSupabase(role, text || '', imageUrl);
+      }
     }
 
     function isImageGenerationRequest(text) {
@@ -801,11 +961,11 @@
       userInput.value = '';
       clearSelectedImage();
 
-      appendMessage('user', text || "تحليل هذه الصورة", attachedImage);
+      const displayedUserText = text || "تحليل هذه الصورة";
+      appendMessage('user', displayedUserText, attachedImage, true);
 
       const chosenModel = document.getElementById('modelSelect')?.value || 'auto';
 
-      // حالة 1: طلب توليد صورة جديدة
       if (!attachedImage && isImageGenerationRequest(text)) {
         isProcessing = true;
         sendBtn.disabled = true;
@@ -834,14 +994,15 @@
 
           const imgLoader = new Image();
           imgLoader.onload = () => {
-            appendMessage('assistant', "✨ تفضل / Here is your generated image:", generatedImageUrl);
+            const replyText = "✨ تفضل / Here is your generated image:";
+            appendMessage('assistant', replyText, generatedImageUrl, true);
             orb.className = "orb";
             aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
             isProcessing = false;
             sendBtn.disabled = false;
           };
           imgLoader.onerror = () => {
-            appendMessage('assistant', "⚠️ تعذر تحميل الصورة من الخادم، جرب وصفاً آخر.");
+            appendMessage('assistant', "⚠️ تعذر تحميل الصورة من الخادم، جرب وصفاً آخر.", null, false);
             orb.className = "orb";
             aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
             isProcessing = false;
@@ -849,7 +1010,7 @@
           };
           imgLoader.src = generatedImageUrl;
         } catch (e) {
-          appendMessage('assistant', "⚠️ حدث خطأ أثناء توليد الصورة.");
+          appendMessage('assistant', "⚠️ حدث خطأ أثناء توليد الصورة.", null, false);
           orb.className = "orb";
           isProcessing = false;
           sendBtn.disabled = false;
@@ -857,7 +1018,6 @@
         return;
       }
 
-      // حالة 2: محادثة نصية أو برمجية أو تحليل صورة
       const userPrompt = text || "Describe and analyze this image in detail.";
       conversationMessages.push({ role: "user", content: userPrompt });
       await processAIResponse(false, Boolean(attachedImage), attachedImage);
@@ -876,7 +1036,7 @@
         const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             messages: recentMessages,
             model: chosenModel,
             hasImage: hasImage,
@@ -885,21 +1045,21 @@
         });
 
         const data = await response.json();
-        
+
         if (!response.ok) {
           orb.className = "orb";
           aiStatus.innerText = "عذراً، حدث خطأ في الخادم.";
-          appendMessage('assistant', `⚠️ تعذر الحصول على رد (${data.error?.message || data.error || response.status})`);
+          appendMessage('assistant', `⚠️ تعذر الحصول على رد (${data.error?.message || data.error || response.status})`, null, false);
           return;
         }
-        
+
         if (data.choices && data.choices.length > 0) {
           const aiReply = data.choices[0].message.content;
           conversationMessages.push({ role: "assistant", content: aiReply });
-          appendMessage('assistant', aiReply);
+          appendMessage('assistant', aiReply, null, true);
           orb.className = "orb";
           aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
-          
+
           if (shouldSpeak) {
             speakZenoReply(aiReply);
           }
@@ -908,16 +1068,13 @@
         console.error(err);
         orb.className = "orb";
         aiStatus.innerText = "فشل الاتصال بالخادم!";
-        appendMessage('assistant', "⚠️ فشل الاتصال بالخادم. تأكد من رفع مجلد api/chat.js واتصالك بالإنترنت.");
+        appendMessage('assistant', "⚠️ فشل الاتصال بالخادم. تأكد من رفع مجلد api/chat.js واتصالك بالإنترنت.", null, false);
       } finally {
         isProcessing = false;
         sendBtn.disabled = false;
       }
     }
 
-    // -------------------------------------------------------------
-    // التعرف الصوتي والنطق متعدد اللغات (Multilingual Speech)
-    // -------------------------------------------------------------
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition;
     let isListening = false;
@@ -931,51 +1088,45 @@
     window.speechSynthesis.onvoiceschanged = loadVoices;
     loadVoices();
 
-    // اكتشاف لغة النص تلقائياً لاختيار الصوت المناسب عند النطق
     function detectSpeechLang(text) {
-      if (/[\u0600-\u06FF]/.test(text)) return 'ar-SA'; // العربية / الكردية / الفارسية
-      if (/[\u0400-\u04FF]/.test(text)) return 'ru-RU'; // الروسية
-      if (/[\u4E00-\u9FFF]/.test(text)) return 'zh-CN'; // الصينية
-      if (/[\u3040-\u30FF]/.test(text)) return 'ja-JP'; // اليابانية
-      if (/[\uAC00-\uD7AF]/.test(text)) return 'ko-KR'; // الكورية
-      if (/[ğüşöçıİĞÜŞÖÇ]/.test(text)) return 'tr-TR'; // التركية
-      if (/[éèêëàâîïôùûüçœæ]/i.test(text)) return 'fr-FR'; // الفرنسية
-      if (/[ñáéíóúü¿¡]/i.test(text)) return 'es-ES'; // الإسبانية
-      if (/[äöüß]/i.test(text)) return 'de-DE'; // الألمانية
-      return 'en-US'; // الإنجليزية كافتراضي للأحرف اللاتينية
+      if (/[\u0600-\u06FF]/.test(text)) return 'ar-SA';
+      if (/[ğüşöçıİĞÜŞÖÇ]/.test(text)) return 'tr-TR';
+      if (/[àâçéèêëîïôùûüÿœ]/i.test(text)) return 'fr-FR';
+      if (/[ñ¿¡]/i.test(text)) return 'es-ES';
+      return 'en-US';
+    }
+
+    function safeStartRecognition() {
+      if (!recognition) return;
+      try {
+        recognition.start();
+      } catch (e) {
+        // تجاهل خطأ البدء المتكرر إذا كان شغالاً بالفعل
+      }
     }
 
     if (SpeechRecognition) {
       recognition = new SpeechRecognition();
-      // يدعم لغة المتصفح تلقائياً، وإذا كانت عربية يستخدم ar-SA
-      recognition.lang = navigator.language || 'ar-SA';
-      recognition.continuous = true; 
+      recognition.lang = 'ar-SA';
       recognition.interimResults = false;
-
-      recognition.onstart = () => {
-        if (!isAISpeaking) {
-          isListening = true;
-          orb.className = "orb listening";
-          aiStatus.innerText = "Zeno يستمع إليك... (تحدث الآن)";
-        }
-      };
+      recognition.maxAlternatives = 1;
 
       recognition.onresult = async (event) => {
         if (isAISpeaking || isProcessing) return;
         const userSpeech = event.results[event.results.length - 1][0].transcript;
-        
-        appendMessage('user', userSpeech);
+
+        appendMessage('user', userSpeech, null, true);
         conversationMessages.push({ role: "user", content: userSpeech });
-        
+
         try { recognition.stop(); } catch (e) {}
         isListening = false;
-        
+
         await processAIResponse(true, false);
       };
 
       recognition.onend = () => {
         if (isListening && !manualStop && !isAISpeaking && !isProcessing) {
-          try { recognition.start(); } catch (e) {}
+          setTimeout(safeStartRecognition, 120);
         } else if (!isAISpeaking && !isListening && !isProcessing) {
           orb.className = "orb";
           aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
@@ -1000,7 +1151,7 @@
         isListening = true;
         orb.className = "orb listening";
         aiStatus.innerText = "Zeno يستمع إليك... (تحدث الآن)";
-        try { recognition.start(); } catch (e) {}
+        safeStartRecognition();
       }
     }
 
@@ -1008,7 +1159,7 @@
       return text
         .replace(/```[\s\S]*?```/g, ' ')
         .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
-        .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]|\uD800-\uDBFF[\uDC00-\uDFFF])/g, '')
+        .replace(/\p{Extended_Pictographic}/gu, '')
         .replace(/[#_*~`@$%^&+=<>|\\/[\]{}()]/g, ' ')
         .replace(/-/g, ' ')
         .replace(/\s+/g, ' ')
@@ -1016,7 +1167,7 @@
     }
 
     function speakZenoReply(text) {
-      isAISpeaking = true; 
+      isAISpeaking = true;
       if (recognition) { try { recognition.stop(); } catch (e) {} }
 
       const cleanSpeechText = cleanTextForSpeech(text);
@@ -1026,16 +1177,16 @@
       }
 
       window.speechSynthesis.cancel();
-      
+
       const detectedLang = detectSpeechLang(cleanSpeechText);
       const utterance = new SpeechSynthesisUtterance(cleanSpeechText);
       utterance.lang = detectedLang;
-      utterance.rate = 0.98; 
+      utterance.rate = 0.98;
 
       if (!availableVoices.length) loadVoices();
       const langPrefix = detectedLang.split('-')[0];
-      const matchedVoice = availableVoices.find(v => v.lang === detectedLang) 
-                        || availableVoices.find(v => v.lang.startsWith(langPrefix));
+      const matchedVoice = availableVoices.find(v => v.lang === detectedLang)
+                        || availableVoices.find(v => v.lang && v.lang.startsWith(langPrefix));
       if (matchedVoice) utterance.voice = matchedVoice;
 
       utterance.onstart = () => {
@@ -1047,7 +1198,8 @@
         orb.className = "orb";
         aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
         if (!manualStop && recognition) {
-          try { recognition.start(); } catch (e) {}
+          isListening = true;
+          setTimeout(safeStartRecognition, 150);
         }
       };
       utterance.onerror = () => {
