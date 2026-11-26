@@ -33,6 +33,11 @@ const FALLBACK_MODELS = [
   "openai/gpt-oss-120b"
 ];
 
+const SHORT_CLEAR_SYSTEM_PROMPT =
+  "أنت مساعد ذكي باسم Zeno AI. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
+  "اجعل الرد ملخصاً ومباشراً ومناسباً للقراءة السريعة على الشاشة، وتجنب الإطالة أو الحشو أو الرموز الزائدة مثل --- و ## و **. " +
+  "احرص دائماً على إنهاء جملك ونقاطك بشكل كامل وغير مقطوع.";
+
 const MAX_RETRIES_PER_KEY = 2;
 const RETRY_DELAYS_MS = [1500, 3000];
 
@@ -66,7 +71,12 @@ function sanitizeModel(model) {
 }
 
 function buildGroqMessages(messages, hasImage, imageBase64) {
-  const safeMessages = Array.isArray(messages) ? messages.slice(-3) : [];
+  const rawList = Array.isArray(messages) ? messages : [];
+  const filtered = rawList.filter((m) => m && m.role !== "system");
+  const safeMessages = filtered.slice(-2).map((m) => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: typeof m.content === "string" ? m.content.slice(0, 1200) : m.content
+  }));
 
   if (hasImage && imageBase64) {
     let lastUserIndex = -1;
@@ -80,7 +90,7 @@ function buildGroqMessages(messages, hasImage, imageBase64) {
     const promptText =
       lastUserIndex >= 0 && typeof safeMessages[lastUserIndex].content === "string"
         ? safeMessages[lastUserIndex].content
-        : "Describe and analyze this image in detail.";
+        : "لخّص واشرح هذه الصورة بوضوح واختصار.";
 
     const visionContent = [
       { type: "text", text: promptText },
@@ -103,7 +113,7 @@ function buildGroqMessages(messages, hasImage, imageBase64) {
     }
   }
 
-  return safeMessages;
+  return [{ role: "system", content: SHORT_CLEAR_SYSTEM_PROMPT }, ...safeMessages];
 }
 
 export default async function handler(req, res) {
@@ -130,7 +140,7 @@ export default async function handler(req, res) {
     const groqMessages = buildGroqMessages(messages, useVisionModel, imageBase64);
     const keysToTry = getOrderedKeys();
 
-    let lastErrorData = { error: "High traffic right now. Please try again in a few seconds." };
+    let lastErrorData = { error: "الضغط مرتفع حالياً، يرجى المحاولة بعد قليل." };
     let lastStatus = 502;
 
     for (const modelName of candidateModels) {
@@ -150,7 +160,8 @@ export default async function handler(req, res) {
               body: JSON.stringify({
                 model: modelName,
                 messages: groqMessages,
-                max_tokens: 900
+                max_tokens: 750,
+                temperature: 0.5
               })
             });
 
@@ -163,7 +174,7 @@ export default async function handler(req, res) {
             lastStatus = response.status;
             lastErrorData =
               response.status === 429
-                ? { error: "High traffic right now. Please wait a few seconds and try again." }
+                ? { error: "الضغط مرتفع حالياً، جاري إعادة المحاولة..." }
                 : data;
 
             const errMsg = String(data?.error?.message || data?.error || "").toLowerCase();
@@ -193,7 +204,7 @@ export default async function handler(req, res) {
             return res.status(lastStatus).json(lastErrorData);
           } catch (fetchErr) {
             lastStatus = 502;
-            lastErrorData = { error: "Temporary network error. Please try again." };
+            lastErrorData = { error: "حدث خلل مؤقت في الشبكة، يرجى المحاولة مرة أخرى." };
             if (retry < MAX_RETRIES_PER_KEY) {
               await sleep(RETRY_DELAYS_MS[retry] || 1500);
               continue;
