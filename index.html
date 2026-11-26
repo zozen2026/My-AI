@@ -230,6 +230,9 @@
       font-size: 0.95rem;
       line-height: 1.6;
       word-break: break-word;
+      height: auto;
+      max-height: none;
+      overflow: visible;
     }
     .message.user {
       background-color: #f97316;
@@ -245,27 +248,6 @@
       border-bottom-left-radius: 4px;
       border-right: 4px solid #4285F4;
       width: fit-content;
-    }
-    .message.collapsed-msg {
-      max-height: 180px;
-      overflow: hidden;
-    }
-    .toggle-expand-btn {
-      margin-top: 8px;
-      background: rgba(15, 23, 42, 0.14);
-      color: inherit;
-      border: 1px solid rgba(255, 255, 255, 0.35);
-      border-radius: 8px;
-      padding: 4px 10px;
-      font-size: 0.78rem;
-      font-weight: bold;
-      cursor: pointer;
-      display: inline-block;
-    }
-    .message.assistant .toggle-expand-btn {
-      border-color: rgba(15, 23, 42, 0.2);
-      background: #e2e8f0;
-      color: #0f172a;
     }
     .message img {
       max-width: 100%;
@@ -650,8 +632,8 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const CHATS_TABLE = "chats_zeno_ai";
-    const MAX_STORED_TEXT_CHARS = 50000;
-    const MAX_CONTEXT_MSG_CHARS = 2000;
+    const MAX_STORED_TEXT_CHARS = 100000;
+    const MAX_CONTEXT_MSG_CHARS = 3500;
     const INITIAL_VISIBLE_MESSAGES = 35;
     const MAX_DOM_MESSAGES = 80;
 
@@ -1046,10 +1028,8 @@
 
     function createMessageElement(role, text, imageUrl = null) {
       const rawText = String(text || '');
-      const isLongText = rawText.length > 450 || rawText.split('\n').length > 10;
-
       const msgDiv = document.createElement('div');
-      msgDiv.className = `message ${role}` + (isLongText ? ' collapsed-msg' : '');
+      msgDiv.className = `message ${role}`;
       msgDiv.dir = "auto";
 
       if (rawText) {
@@ -1067,18 +1047,6 @@
         img.src = imageUrl;
         img.alt = "صورة";
         msgDiv.appendChild(img);
-      }
-
-      if (isLongText) {
-        const expandBtn = document.createElement('button');
-        expandBtn.type = 'button';
-        expandBtn.className = 'toggle-expand-btn';
-        expandBtn.innerText = 'عرض النص الكامل';
-        expandBtn.onclick = () => {
-          const isCollapsed = msgDiv.classList.toggle('collapsed-msg');
-          expandBtn.innerText = isCollapsed ? 'عرض النص الكامل' : 'تصغير النص';
-        };
-        msgDiv.appendChild(expandBtn);
       }
 
       return msgDiv;
