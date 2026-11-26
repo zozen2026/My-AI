@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zeno AI Assistant - NC Studio</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23f97316'/><text x='50' y='67' font-size='50' text-anchor='middle' fill='white' font-family='sans-serif'>Z</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><radialGradient id='glow' cx='50%25' cy='42%25' r='55%25'><stop offset='0%25' stop-color='%23fef08a'/><stop offset='55%25' stop-color='%23facc15'/><stop offset='100%25' stop-color='%23eab308'/></radialGradient></defs><rect width='100' height='100' rx='22' fill='%23ffffff'/><circle cx='50' cy='42' r='26' fill='%23fde047' opacity='0.28'/><path d='M50 18c-11.6 0-21 9.4-21 21 0 7.6 4 14.3 10 18v7c0 2.2 1.8 4 4 4h14c2.2 0 4-1.8 4-4v-7c6-3.7 10-10.4 10-18 0-11.6-9.4-21-21-21z' fill='url(%23glow)' stroke='%23ca8a04' stroke-width='2.5'/><rect x='41' y='72' width='18' height='5' rx='2.5' fill='%2371717a'/><rect x='43' y='79' width='14' height='4' rx='2' fill='%2352525b'/></svg>">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
@@ -93,7 +93,7 @@
       background: transparent;
       border: none;
       color: #18181b;
-      text-align: right;
+      text-align: left;
       cursor: pointer;
       font-size: 13px;
       transition: background 0.2s;
@@ -122,7 +122,7 @@
       font-size: 0.82rem;
       font-weight: bold;
       cursor: pointer;
-      max-width: 140px;
+      max-width: 150px;
     }
 
     .logo {
@@ -237,16 +237,16 @@
     .message.user {
       background-color: #f97316;
       color: #ffffff;
-      align-self: flex-start;
+      align-self: flex-end;
       border-bottom-right-radius: 4px;
       white-space: pre-wrap;
     }
     .message.assistant {
       background-color: #f1f5f9;
       color: #1e293b;
-      align-self: flex-end;
+      align-self: flex-start;
       border-bottom-left-radius: 4px;
-      border-right: 4px solid #4285F4;
+      border-left: 4px solid #4285F4;
       width: fit-content;
     }
     .message img {
@@ -262,7 +262,7 @@
       display: none;
       position: absolute;
       bottom: 82px;
-      left: 20px;
+      right: 20px;
       width: 36px;
       height: 36px;
       border-radius: 50%;
@@ -421,7 +421,7 @@
     }
     .send-btn:hover:not(:disabled) { background-color: #f97316; }
     .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .send-btn svg { width: 20px; height: 20px; fill: #fff; transform: rotate(180deg); }
+    .send-btn svg { width: 20px; height: 20px; fill: #fff; }
 
     .modal-overlay {
       display: none;
@@ -477,7 +477,7 @@
       border-radius: 10px;
       border: 1px solid #e2e8f0;
       background: #f8fafc;
-      text-align: right;
+      text-align: left;
       cursor: pointer;
       font-size: 12px;
       color: #1e293b;
@@ -524,19 +524,19 @@
 </head>
 <body>
 
-  <div class="model-selector-wrapper" title="اختر نموذج الذكاء الاصطناعي">
+  <div class="model-selector-wrapper" title="Select AI Model">
     <span>⚡</span>
     <select id="modelSelect">
-      <option value="auto" selected>Zeno Auto (تلقائي)</option>
-      <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout (سريع)</option>
-      <option value="qwen/qwen3-32b">Qwen 3 32B (متعدد اللغات/برمجة)</option>
-      <option value="openai/gpt-oss-120b">GPT-OSS 120B (ذكي جداً)</option>
-      <option value="llama-3.3-70b-versatile">Llama 3.3 70B (متوازن)</option>
-      <option value="llama-3.1-8b-instant">Llama 3.1 8B (فوري)</option>
+      <option value="auto" selected>Zeno Auto</option>
+      <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout (Fast)</option>
+      <option value="qwen/qwen3-32b">Qwen 3 32B (Code/Multilingual)</option>
+      <option value="openai/gpt-oss-120b">GPT-OSS 120B (High Reasoning)</option>
+      <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Balanced)</option>
+      <option value="llama-3.1-8b-instant">Llama 3.1 8B (Instant)</option>
     </select>
   </div>
 
-  <div class="profile-wrapper" id="profile-icon" title="الملف الشخصي">
+  <div class="profile-wrapper" id="profile-icon" title="Profile">
     <div class="profile-avatar-container">
       <div class="profile-avatar-img">
         <svg viewBox="0 0 24 24">
@@ -544,15 +544,15 @@
         </svg>
       </div>
     </div>
-    <span class="profile-name-text" id="display-account-name">زائر</span>
+    <span class="profile-name-text" id="display-account-name">Guest</span>
 
     <div class="profile-menu" id="profile-menu">
       <div class="user-name-info" id="user-name-info"></div>
-      <button id="btn-new-chat">دردشة جديدة</button>
-      <button id="btn-history" style="display:none;">Chats Zeno AI (السجل)</button>
-      <button id="btn-show-login">تسجيل الدخول</button>
-      <button id="btn-show-signup">إنشاء حساب جديد</button>
-      <button id="btn-logout" style="display:none; color:#ef4444;">تسجيل الخروج</button>
+      <button id="btn-new-chat">New Chat</button>
+      <button id="btn-history" style="display:none;">Chats Zeno AI (History)</button>
+      <button id="btn-show-login">Sign In</button>
+      <button id="btn-show-signup">Create Account</button>
+      <button id="btn-logout" style="display:none; color:#ef4444;">Sign Out</button>
     </div>
   </div>
 
@@ -561,35 +561,35 @@
   </div>
 
   <div class="zeno-ai-section">
-    <div class="orb" id="aiOrb" onclick="startZenoListening()" title="اضغط وتحدث صوتياً مع Zeno"></div>
-    <div class="ai-status-text" id="aiStatus">اضغط على الكرة وتحدث صوتياً...</div>
+    <div class="orb" id="aiOrb" onclick="startZenoListening()" title="Click to talk with Zeno"></div>
+    <div class="ai-status-text" id="aiStatus">Click the orb and speak...</div>
   </div>
 
   <div class="chat-container">
     <div class="load-older-bar" id="load-older-bar">
-      <button type="button" class="load-older-btn" id="btn-load-older">عرض رسائل أقدم</button>
+      <button type="button" class="load-older-btn" id="btn-load-older">Load Older Messages</button>
     </div>
     <div class="chat-messages" id="chat-messages"></div>
-    <button type="button" class="scroll-bottom-btn" id="scroll-bottom-btn" title="النزول لآخر رسالة">↓</button>
+    <button type="button" class="scroll-bottom-btn" id="scroll-bottom-btn" title="Scroll to latest message">↓</button>
 
     <div class="image-preview-bar" id="image-preview-bar">
       <div class="image-preview-content">
-        <img id="preview-img-thumb" src="" alt="معاينة الصورة">
-        <span>تم إرفاق صورة، اكتب سؤالك...</span>
+        <img id="preview-img-thumb" src="" alt="Image preview">
+        <span>Image attached. Type your question...</span>
       </div>
-      <button class="remove-img-btn" onclick="clearSelectedImage()" title="إزالة الصورة">×</button>
+      <button class="remove-img-btn" onclick="clearSelectedImage()" title="Remove image">×</button>
     </div>
 
     <div class="chat-input-container">
       <input type="file" id="image-input" accept="image/*" capture="environment" style="display: none;" onchange="handleImageUpload(event)">
-      <button class="camera-btn" onclick="document.getElementById('image-input').click()" title="التقاط أو إرفاق صورة">
+      <button class="camera-btn" onclick="document.getElementById('image-input').click()" title="Capture or attach image">
         <svg viewBox="0 0 24 24">
           <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
         </svg>
       </button>
 
-      <textarea id="user-input" placeholder="اكتب رسالتك بأي لغة..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTextMessage(); }"></textarea>
-      <button class="send-btn" id="send-btn" onclick="sendTextMessage()" title="إرسال">
+      <textarea id="user-input" placeholder="Type your message in any language..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTextMessage(); }"></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendTextMessage()" title="Send">
         <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
     </div>
@@ -597,22 +597,22 @@
 
   <div class="modal-overlay" id="login-modal">
     <div class="modal-card">
-      <h3>تسجيل الدخول - Zeno</h3>
-      <input type="text" id="login-username" placeholder="اسم المستخدم">
-      <input type="password" id="login-password" placeholder="كلمة المرور">
-      <button class="submit-btn" id="login-submit">دخول</button>
-      <button class="close-btn" id="login-close">إلغاء</button>
+      <h3>Sign In - Zeno</h3>
+      <input type="text" id="login-username" placeholder="Username">
+      <input type="password" id="login-password" placeholder="Password">
+      <button class="submit-btn" id="login-submit">Sign In</button>
+      <button class="close-btn" id="login-close">Cancel</button>
     </div>
   </div>
 
   <div class="modal-overlay" id="signup-modal">
     <div class="modal-card">
-      <h3>إنشاء حساب جديد - Zeno</h3>
-      <input type="text" id="signup-username" placeholder="اسم المستخدم">
-      <input type="text" id="signup-accountname" placeholder="اسم الحساب الظاهر">
-      <input type="password" id="signup-password" placeholder="كلمة المرور">
-      <button class="submit-btn" id="signup-submit">إنشاء الحساب</button>
-      <button class="close-btn" id="signup-close">إلغاء</button>
+      <h3>Create Account - Zeno</h3>
+      <input type="text" id="signup-username" placeholder="Username">
+      <input type="text" id="signup-accountname" placeholder="Display Name">
+      <input type="password" id="signup-password" placeholder="Password">
+      <button class="submit-btn" id="signup-submit">Create Account</button>
+      <button class="close-btn" id="signup-close">Cancel</button>
     </div>
   </div>
 
@@ -620,7 +620,7 @@
     <div class="modal-card">
       <h3>Chats Zeno AI</h3>
       <div class="sessions-list" id="sessions-list"></div>
-      <button class="close-btn" id="history-close">إغلاق</button>
+      <button class="close-btn" id="history-close">Close</button>
     </div>
   </div>
 
@@ -637,10 +637,10 @@
     const INITIAL_VISIBLE_MESSAGES = 35;
     const MAX_DOM_MESSAGES = 80;
 
-    const WELCOME_MESSAGE = "أهلاً بك في Zeno AI! اسألني بأي لغة في العالم في البرمجة أو أي مجال.";
+    const WELCOME_MESSAGE = "Welcome to Zeno AI! Ask me anything about programming or any topic in any language.";
     const SYSTEM_PROMPT = {
       role: "system",
-      content: "You are Zeno AI, an intelligent, creative, and multilingual AI assistant developed exclusively by NC Studio (استوديو NC). You fluently understand and support ALL languages in the world (Arabic, English, French, Spanish, Turkish, Kurdish, German, Russian, Japanese, etc.). Always detect the user's language and dialect automatically and respond naturally in the exact same language and tone. If the user writes in Arabic, reply in friendly natural Arabic; if in English or any other language, reply fluently in that language. In programming tasks, always wrap code inside triple backticks (```). If anyone asks who created or developed you, answer in their language that you were developed by NC Studio (من طورني هو استوديو NC)."
+      content: "You are Zeno AI, an intelligent, creative, and multilingual AI assistant developed exclusively by NC Studio. You fluently understand and support ALL languages in the world (Arabic, English, French, Spanish, Turkish, Kurdish, German, Russian, Japanese, etc.). Always detect the user's language and dialect automatically and respond naturally in the exact same language and tone. In programming tasks, always wrap code inside triple backticks (```). If anyone asks who created or developed you, reply in the user's language that you were developed by NC Studio."
     };
 
     let currentUser = null;
@@ -785,7 +785,7 @@
     async function openUserSessionsModal() {
       if (!hasAccount()) return;
       const sessionsList = document.getElementById('sessions-list');
-      sessionsList.innerHTML = '<div style="font-size:12px;color:#64748b;text-align:center;">جاري التحميل...</div>';
+      sessionsList.innerHTML = '<div style="font-size:12px;color:#64748b;text-align:center;">Loading...</div>';
       document.getElementById('history-modal').style.display = 'flex';
 
       const { data, error } = await supabaseClient
@@ -796,7 +796,7 @@
         .limit(120);
 
       if (error || !data || data.length === 0) {
-        sessionsList.innerHTML = '<div style="font-size:12px;color:#64748b;text-align:center;">لا توجد محادثات سابقة في Chats Zeno AI.</div>';
+        sessionsList.innerHTML = '<div style="font-size:12px;color:#64748b;text-align:center;">No saved chats found in Chats Zeno AI.</div>';
         return;
       }
 
@@ -815,8 +815,8 @@
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'session-item' + (item.sessionId === currentSessionId ? ' active' : '');
-        const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar') : '';
-        btn.innerHTML = `<div>جلسة محادثة</div><div style="font-size:10px;color:#64748b;margin-top:2px;">${dateStr}</div>`;
+        const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-US') : '';
+        btn.innerHTML = `<div>Chat Session</div><div style="font-size:10px;color:#64748b;margin-top:2px;">${dateStr}</div>`;
         btn.onclick = async () => {
           currentSessionId = item.sessionId;
           localStorage.setItem('zeno_user_session_' + currentUser.username, currentSessionId);
@@ -873,16 +873,16 @@
       const username = document.getElementById('signup-username').value.trim();
       const accountName = document.getElementById('signup-accountname').value.trim() || username;
       const password = document.getElementById('signup-password').value;
-      if (!username || !password) return alert('يرجى ملء الحقول');
+      if (!username || !password) return alert('Please fill in all required fields');
 
       const { data, error } = await supabaseClient
         .from('accounts')
         .insert([{ username, account_name: accountName, password, language: 'auto' }])
         .select();
 
-      if (error) alert('خطأ: ' + error.message);
+      if (error) alert('Error: ' + error.message);
       else {
-        alert('تم إنشاء الحساب بنجاح!');
+        alert('Account created successfully!');
         signupModal.style.display = 'none';
         localStorage.setItem('zeno_current_user', JSON.stringify(data[0]));
         await updateUIAuthState(data[0]);
@@ -898,11 +898,11 @@
         .eq('username', username)
         .eq('password', password);
 
-      if (error || !data || data.length === 0) alert('فشل تسجيل الدخول');
+      if (error || !data || data.length === 0) alert('Sign in failed');
       else {
         localStorage.setItem('zeno_current_user', JSON.stringify(data[0]));
         await updateUIAuthState(data[0]);
-        alert('أهلاً بك!');
+        alert('Welcome back!');
         loginModal.style.display = 'none';
       }
     };
@@ -916,7 +916,7 @@
       currentUser = user || null;
       if (user) {
         document.getElementById('display-account-name').innerText = user.account_name || user.username;
-        userNameInfo.textContent = `الحساب: ${user.account_name || user.username}`;
+        userNameInfo.textContent = `Account: ${user.account_name || user.username}`;
         userNameInfo.style.display = 'block';
         document.getElementById('btn-history').style.display = 'block';
         document.getElementById('btn-show-login').style.display = 'none';
@@ -924,7 +924,7 @@
         document.getElementById('btn-logout').style.display = 'block';
         currentSessionId = resolveAccountSessionId(currentUser);
       } else {
-        document.getElementById('display-account-name').innerText = 'زائر';
+        document.getElementById('display-account-name').innerText = 'Guest';
         userNameInfo.style.display = 'none';
         document.getElementById('btn-history').style.display = 'none';
         document.getElementById('btn-show-login').style.display = 'block';
@@ -991,7 +991,7 @@
           <div class="code-block-wrapper">
             <div class="code-block-header">
               <span>${languageLabel}</span>
-              <button class="copy-code-btn" onclick="copyCodeToClipboard(this)">نسخ الكود</button>
+              <button class="copy-code-btn" onclick="copyCodeToClipboard(this)">Copy Code</button>
             </div>
             <div class="code-block-content"><code>${escapedCode}</code></div>
           </div>
@@ -1017,7 +1017,7 @@
 
       navigator.clipboard.writeText(codeElement.innerText).then(() => {
         const originalText = btn.innerText;
-        btn.innerText = "تم النسخ! ✓";
+        btn.innerText = "Copied!";
         btn.style.backgroundColor = "#16a34a";
         setTimeout(() => {
           btn.innerText = originalText;
@@ -1045,7 +1045,7 @@
       if (imageUrl && /^data:image\/|^https?:\/\//i.test(imageUrl)) {
         const img = document.createElement('img');
         img.src = imageUrl;
-        img.alt = "صورة";
+        img.alt = "Attached image";
         msgDiv.appendChild(img);
       }
 
@@ -1093,7 +1093,7 @@
       userInput.style.height = '46px';
       clearSelectedImage();
 
-      const displayedUserText = text || "تحليل هذه الصورة";
+      const displayedUserText = text || "Analyze this image";
       appendMessage('user', displayedUserText, attachedImage, true);
 
       const userPrompt = text || "Describe and analyze this image in detail.";
@@ -1105,7 +1105,7 @@
       isProcessing = true;
       sendBtn.disabled = true;
       orb.className = "orb thinking";
-      aiStatus.innerText = "Zeno يفكر في الإجابة...";
+      aiStatus.innerText = "Zeno is thinking...";
 
       const recentMessages = [
         conversationMessages[0],
@@ -1132,8 +1132,8 @@
 
         if (!response.ok) {
           orb.className = "orb";
-          aiStatus.innerText = "عذراً، حدث خطأ في الخادم.";
-          appendMessage('assistant', `⚠️ تعذر الحصول على رد (${data.error?.message || data.error || response.status})`, null, false);
+          aiStatus.innerText = "Server error occurred.";
+          appendMessage('assistant', `Unable to get response (${data.error?.message || data.error || response.status})`, null, false);
           return;
         }
 
@@ -1142,7 +1142,7 @@
           pushContextMessage("assistant", aiReply);
           appendMessage('assistant', aiReply, null, true);
           orb.className = "orb";
-          aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
+          aiStatus.innerText = "Click the orb and speak...";
 
           if (shouldSpeak) {
             speakZenoReply(aiReply);
@@ -1151,8 +1151,8 @@
       } catch (err) {
         console.error(err);
         orb.className = "orb";
-        aiStatus.innerText = "فشل الاتصال بالخادم!";
-        appendMessage('assistant', "⚠️ فشل الاتصال بالخادم. تأكد من رفع مجلد api/chat.js واتصالك بالإنترنت.", null, false);
+        aiStatus.innerText = "Connection failed!";
+        appendMessage('assistant', "Failed to connect to the server. Make sure api/chat.js is deployed and check your network.", null, false);
       } finally {
         isProcessing = false;
         sendBtn.disabled = false;
@@ -1189,7 +1189,7 @@
 
     if (SpeechRecognition) {
       recognition = new SpeechRecognition();
-      recognition.lang = 'ar-SA';
+      recognition.lang = 'en-US';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
@@ -1211,14 +1211,14 @@
           setTimeout(safeStartRecognition, 120);
         } else if (!isAISpeaking && !isListening && !isProcessing) {
           orb.className = "orb";
-          aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
+          aiStatus.innerText = "Click the orb and speak...";
         }
       };
     }
 
     function startZenoListening() {
       if (!recognition) {
-        alert("متصفحك لا يدعم خاصية التعرف على الصوت.");
+        alert("Your browser does not support speech recognition.");
         return;
       }
 
@@ -1227,12 +1227,12 @@
         isListening = false;
         try { recognition.stop(); } catch (e) {}
         orb.className = "orb";
-        aiStatus.innerText = "تم إيقاف الاستماع.";
+        aiStatus.innerText = "Listening stopped.";
       } else {
         manualStop = false;
         isListening = true;
         orb.className = "orb listening";
-        aiStatus.innerText = "Zeno يستمع إليك... (تحدث الآن)";
+        aiStatus.innerText = "Zeno is listening... (Speak now)";
         safeStartRecognition();
       }
     }
@@ -1272,12 +1272,12 @@
 
       utterance.onstart = () => {
         orb.className = "orb speaking";
-        aiStatus.innerText = "Zeno يتحدث...";
+        aiStatus.innerText = "Zeno is speaking...";
       };
       utterance.onend = () => {
         isAISpeaking = false;
         orb.className = "orb";
-        aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
+        aiStatus.innerText = "Click the orb and speak...";
         if (!manualStop && recognition) {
           isListening = true;
           setTimeout(safeStartRecognition, 150);
@@ -1286,7 +1286,7 @@
       utterance.onerror = () => {
         isAISpeaking = false;
         orb.className = "orb";
-        aiStatus.innerText = "اضغط على الكرة وتحدث صوتياً...";
+        aiStatus.innerText = "Click the orb and speak...";
       };
 
       window.speechSynthesis.speak(utterance);
