@@ -707,7 +707,8 @@
 
     async function saveMessageToSupabase(role, content, imageUrl = null) {
       if (!hasAccount() || !currentSessionId) return;
-      const safeContent = String(content || '').slice(0, MAX_STORED_TEXT_CHARS);
+      const safeContent = String(content || '').trim().slice(0, MAX_STORED_TEXT_CHARS);
+      if (!safeContent && !imageUrl) return;
       const safeImageUrl = (imageUrl && imageUrl.length > 250000) ? null : imageUrl;
 
       const { error } = await supabaseClient
@@ -769,12 +770,16 @@
         return;
       }
 
-      allLoadedRows = Array.isArray(data) ? data : [];
+      allLoadedRows = Array.isArray(data)
+        ? data.filter(row => String(row.content || '').trim() !== '' || Boolean(row.image_url))
+        : [];
+
       allLoadedRows.slice(-6).forEach(row => {
-        if (row.role === 'user' || row.role === 'assistant') {
+        const cleanContent = String(row.content || '').trim().slice(0, MAX_CONTEXT_MSG_CHARS);
+        if ((row.role === 'user' || row.role === 'assistant') && cleanContent) {
           conversationMessages.push({
             role: row.role,
-            content: String(row.content || '').slice(0, MAX_CONTEXT_MSG_CHARS)
+            content: cleanContent
           });
         }
       });
@@ -1053,7 +1058,9 @@
     }
 
     function appendMessage(role, text, imageUrl = null, persist = true) {
-      const rawText = String(text || '');
+      const rawText = String(text || '').trim();
+      if (!rawText && !imageUrl) return;
+
       const msgDiv = createMessageElement(role, rawText, imageUrl);
       chatMessages.appendChild(msgDiv);
 
@@ -1073,9 +1080,11 @@
     }
 
     function pushContextMessage(role, content) {
+      const clean = String(content || '').trim().slice(0, MAX_CONTEXT_MSG_CHARS);
+      if (!clean) return;
       conversationMessages.push({
         role,
-        content: String(content || '').slice(0, MAX_CONTEXT_MSG_CHARS)
+        content: clean
       });
       if (conversationMessages.length > 7) {
         conversationMessages = [SYSTEM_PROMPT, ...conversationMessages.slice(-6)];
@@ -1138,15 +1147,16 @@
         }
 
         if (data.choices && data.choices.length > 0) {
-          const aiReply = data.choices[0].message.content;
-          pushContextMessage("assistant", aiReply);
-          appendMessage('assistant', aiReply, null, true);
+          const aiReply = String(data.choices[0].message.content || '').trim();
+          if (aiReply) {
+            pushContextMessage("assistant", aiReply);
+            appendMessage('assistant', aiReply, null, true);
+            if (shouldSpeak) {
+              speakZenoReply(aiReply);
+            }
+          }
           orb.className = "orb";
           aiStatus.innerText = "Click the orb and speak...";
-
-          if (shouldSpeak) {
-            speakZenoReply(aiReply);
-          }
         }
       } catch (err) {
         console.error(err);
@@ -1189,26 +1199,49 @@
 
     if (SpeechRecognition) {
       recognition = new SpeechRecognition();
-      recognition.lang = 'en-US';
+      recognition.lang = 'ar-SA';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
       recognition.onresult = async (event) => {
         if (isAISpeaking || isProcessing) return;
-        const userSpeech = event.results[event.results.length - 1][0].transcript;
+        const lastResult = event.results[event.results.length - 1];
+        const userSpeech = String(lastResult?.[0]?.transcript || '').trim();
+
+        if (!userSpeech) {
+          aiStatus.innerText = "No speech detected. Speak clearly...";
+          return;
+        }
+
+        try { recognition.stop(); } catch (e) {}
+        isListening = false;
+        manualStop = true;
 
         appendMessage('user', userSpeech, null, true);
         pushContextMessage("user", userSpeech);
 
-        try { recognition.stop(); } catch (e) {}
-        isListening = false;
-
         await processAIResponse(true, false);
+      };
+
+      recognition.onerror = (event) => {
+        if (event.error === 'no-speech') {
+          aiStatus.innerText = "No speech heard. Click the orb and try again.";
+        } else if (event.error === 'not-allowed' || event.error === 'audio-capture') {
+          manualStop = true;
+          isListening = false;
+          orb.className = "orb";
+          aiStatus.innerText = "Microphone access denied or unavailable.";
+        } else {
+          aiStatus.innerText = "Click the orb and speak...";
+        }
+        if (!isAISpeaking && !isProcessing) {
+          orb.className = "orb";
+        }
       };
 
       recognition.onend = () => {
         if (isListening && !manualStop && !isAISpeaking && !isProcessing) {
-          setTimeout(safeStartRecognition, 120);
+          setTimeout(safeStartRecognition, 150);
         } else if (!isAISpeaking && !isListening && !isProcessing) {
           orb.className = "orb";
           aiStatus.innerText = "Click the orb and speak...";
@@ -1220,6 +1253,11 @@
       if (!recognition) {
         alert("Your browser does not support speech recognition.");
         return;
+      }
+
+      if (isAISpeaking) {
+        window.speechSynthesis.cancel();
+        isAISpeaking = false;
       }
 
       if (isListening) {
