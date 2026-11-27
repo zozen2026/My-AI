@@ -23,17 +23,18 @@ function loadGroqKeys() {
 }
 
 const GROQ_KEYS = loadGroqKeys();
-const GEMINI_API_KEY = typeof process.env.GEMINI_API_KEY === "string" ? process.env.GEMINI_API_KEY.trim() : "";
+const GEMINI_API_KEY =
+  typeof process.env.GEMINI_API_KEY === "string" ? process.env.GEMINI_API_KEY.trim() : "";
+
+// 4 نماذج فقط لسهولة التحكم وسرعة الاستجابة
+const ALLOWED_MODELS = [
+  "llama-3.1-8b-instant",
+  "llama-3.3-70b-versatile",
+  "openai/gpt-oss-20b",
+  "qwen/qwen3-32b"
+];
 
 const DEFAULT_AUTO_MODEL = "llama-3.1-8b-instant";
-const FALLBACK_MODELS = [
-  "llama-3.1-8b-instant",
-  "openai/gpt-oss-20b",
-  "qwen/qwen3-32b",
-  "moonshotai/kimi-k2-instruct-0905",
-  "llama-3.3-70b-versatile",
-  "openai/gpt-oss-120b"
-];
 
 const SHORT_CLEAR_SYSTEM_PROMPT =
   "أنت مساعد ذكي باسم My AI مطور من قبل NC Studio. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
@@ -43,7 +44,7 @@ const SHORT_CLEAR_SYSTEM_PROMPT =
   "احرص دائماً على إنهاء جملك ونقاطك بشكل كامل وغير مقطوع.";
 
 const MAX_RETRIES_PER_KEY = 1;
-const RETRY_DELAYS_MS = [1000, 2000];
+const RETRY_DELAYS_MS = [350, 800];
 let roundRobinIndex = 0;
 
 function sleep(ms) {
@@ -55,7 +56,7 @@ function normalizeLongAnswerSeparators(text) {
 
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const hasMultipleBlocks =
-    lines.filter((l) => l.trim().length > 0).length >= 4 || text.length >= 350;
+    lines.filter((l) => l.trim().length > 0).length >= 4 || text.length >= 300;
 
   if (!hasMultipleBlocks) {
     return text.trim();
@@ -89,12 +90,17 @@ function getOrderedKeys() {
   return ordered;
 }
 
-function sanitizeModel(model) {
-  if (!model || typeof model !== "string" || model === "auto") {
-    return DEFAULT_AUTO_MODEL;
+function resolveModelList(requestedModel) {
+  if (!requestedModel || typeof requestedModel !== "string" || requestedModel.trim() === "auto") {
+    return [DEFAULT_AUTO_MODEL, ...ALLOWED_MODELS.filter((m) => m !== DEFAULT_AUTO_MODEL)];
   }
-  const clean = model.trim();
-  return clean || DEFAULT_AUTO_MODEL;
+
+  const clean = requestedModel.trim();
+  if (ALLOWED_MODELS.includes(clean)) {
+    return [clean, ...ALLOWED_MODELS.filter((m) => m !== clean)];
+  }
+
+  return [DEFAULT_AUTO_MODEL, ...ALLOWED_MODELS.filter((m) => m !== DEFAULT_AUTO_MODEL)];
 }
 
 function parseDataUrl(dataUrl) {
@@ -111,8 +117,8 @@ async function analyzeVisualWithGemini(promptText, framesList) {
     };
   }
 
-  const parts = [{ text: promptText }];
-  for (const frame of framesList.slice(0, 4)) {
+  const parts = [{ text: promptText.slice(0, 500) }];
+  for (const frame of framesList.slice(0, 2)) {
     const parsed = parseDataUrl(frame);
     if (parsed) {
       parts.push({
@@ -124,16 +130,11 @@ async function analyzeVisualWithGemini(promptText, framesList) {
     }
   }
 
-  const modelsToTry = [
-    "gemini-4-argon",
-    "gemini-4-hydrogen",
-    "gemini-3.8-flash",
-    "gemini-2.5-flash"
-  ];
+  const modelsToTry = ["gemini-2.5-flash"];
 
   for (const gemModel of modelsToTry) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${gemModel}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
@@ -147,23 +148,25 @@ async function analyzeVisualWithGemini(promptText, framesList) {
           },
           contents: [{ role: "user", parts }],
           generationConfig: {
-            temperature: 0.4,
-            maxOutputTokens: 750
+            temperature: 0.35,
+            maxOutputTokens: 420
           }
         })
       });
 
       const data = await response.json().catch(() => ({}));
-      const rawReplyText = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("").trim();
+      const rawReplyText =
+        data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("").trim();
+
       if (response.ok && rawReplyText) {
-        const replyText = normalizeLongAnswerSeparators(rawReplyText);
         return {
           ok: true,
           model: gemModel,
-          replyText
+          replyText: normalizeLongAnswerSeparators(rawReplyText)
         };
       }
-    } catch (e) {} finally {
+    } catch (e) {
+    } finally {
       clearTimeout(timeoutId);
     }
   }
@@ -174,14 +177,22 @@ async function analyzeVisualWithGemini(promptText, framesList) {
   };
 }
 
-function buildGroqMessages(messages) {
+// يحذف الرسائل القديمة ويبقي على آخر رسالتين فقط لتقليل التوكنات
+function buildStatelessGroqMessages(messages) {
   const rawList = Array.isArray(messages) ? messages : [];
-  const filtered = rawList.filter((m) => m && m.role !== "system");
-  const safeMessages = filtered.slice(-2).map((m) => ({
-    role: m.role === "assistant" ? "assistant" : "user",
-    content: typeof m.content === "string" ? m.content.slice(0, 1200) : String(m.content || "")
+  const filtered = rawList.filter(
+    (m) => m && (m.role === "user" || m.role === "assistant") && String(m.content || "").trim()
+  );
+
+  const recentTwo = filtered.slice(-2).map((m) => ({
+    role: m.role,
+    content:
+      typeof m.content === "string"
+        ? m.content.trim().slice(0, 450)
+        : String(m.content || "").trim().slice(0, 450)
   }));
-  return [{ role: "system", content: SHORT_CLEAR_SYSTEM_PROMPT }, ...safeMessages];
+
+  return [{ role: "system", content: SHORT_CLEAR_SYSTEM_PROMPT }, ...recentTwo];
 }
 
 export default async function handler(req, res) {
@@ -191,9 +202,12 @@ export default async function handler(req, res) {
 
   try {
     const { messages, model, hasImage, imageBase64, videoFrames } = req.body || {};
-    const framesList = Array.isArray(videoFrames) && videoFrames.length
-      ? videoFrames.slice(0, 4)
-      : (imageBase64 ? [imageBase64] : []);
+    const framesList =
+      Array.isArray(videoFrames) && videoFrames.length
+        ? videoFrames.slice(0, 2)
+        : imageBase64
+        ? [imageBase64]
+        : [];
 
     const hasVisualInput = Boolean(hasImage && framesList.length > 0);
 
@@ -220,9 +234,8 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "No Groq API keys configured on server" });
     }
 
-    const chosenModel = sanitizeModel(model);
-    const candidateModels = [chosenModel, ...FALLBACK_MODELS.filter((m) => m !== chosenModel)];
-    const groqMessages = buildGroqMessages(messages);
+    const candidateModels = resolveModelList(model);
+    const groqMessages = buildStatelessGroqMessages(messages);
     const keysToTry = getOrderedKeys();
 
     let lastErrorData = { error: "الضغط مرتفع حالياً، يرجى المحاولة بعد قليل." };
@@ -233,6 +246,9 @@ export default async function handler(req, res) {
         const apiKey = keysToTry[i];
 
         for (let retry = 0; retry <= MAX_RETRIES_PER_KEY; retry++) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 9000);
+
           try {
             const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
               method: "POST",
@@ -240,11 +256,12 @@ export default async function handler(req, res) {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${apiKey}`
               },
+              signal: controller.signal,
               body: JSON.stringify({
                 model: modelName,
                 messages: groqMessages,
-                max_tokens: 750,
-                temperature: 0.5
+                max_tokens: 420,
+                temperature: 0.45
               })
             });
 
@@ -288,15 +305,16 @@ export default async function handler(req, res) {
               break;
             }
 
-            const isTransient = response.status === 429 || response.status === 413 || response.status >= 500;
+            const isTransient =
+              response.status === 429 || response.status === 413 || response.status >= 500;
             if (isTransient && retry < MAX_RETRIES_PER_KEY) {
-              await sleep(RETRY_DELAYS_MS[retry] || 1000);
+              await sleep(RETRY_DELAYS_MS[retry] || 350);
               continue;
             }
 
             if (isTransient) {
               if (i < keysToTry.length - 1) {
-                await sleep(150);
+                await sleep(80);
               }
               break;
             }
@@ -306,13 +324,15 @@ export default async function handler(req, res) {
             lastStatus = 502;
             lastErrorData = { error: "حدث خلل مؤقت في الشبكة، يرجى المحاولة مرة أخرى." };
             if (retry < MAX_RETRIES_PER_KEY) {
-              await sleep(RETRY_DELAYS_MS[retry] || 1000);
+              await sleep(RETRY_DELAYS_MS[retry] || 350);
               continue;
             }
             if (i < keysToTry.length - 1) {
-              await sleep(150);
+              await sleep(80);
             }
             break;
+          } finally {
+            clearTimeout(timeoutId);
           }
         }
       }
