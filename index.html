@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zeno AI Assistant - NC Studio</title>
+  <title>My AI Assistant - NC Studio</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23ffffff'/><g stroke='%23f59e0b' stroke-width='4' stroke-linecap='round'><line x1='50' y1='6' x2='50' y2='14'/><line x1='20' y1='17' x2='26' y2='23'/><line x1='80' y1='17' x2='74' y2='23'/><line x1='10' y1='43' x2='18' y2='43'/><line x1='82' y1='43' x2='90' y2='43'/></g><path d='M50 20c-12.5 0-22 9.5-22 21 0 8.2 4.5 14.5 10.5 18.5 1.5 1 2 2.5 2 4.5v2h19v-2c0-2 0.5-3.5 2-4.5 6-4 10.5-10.3 10.5-18.5 0-11.5-9.5-21-22-21z' fill='%23facc15' stroke='%231e293b' stroke-width='4' stroke-linejoin='round'/><ellipse cx='41' cy='35' rx='4.5' ry='7.5' transform='rotate(-22 41 35)' fill='%23fef9c3'/><rect x='40' y='66' width='20' height='6' rx='3' fill='%2394a3b8' stroke='%231e293b' stroke-width='3.5'/><rect x='42' y='72' width='16' height='6' rx='3' fill='%2364748b' stroke='%231e293b' stroke-width='3.5'/><path d='M45 78h10c0 3.5-2.2 6-5 6s-5-2.5-5-6z' fill='%23475569' stroke='%231e293b' stroke-width='3'/></svg>">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -21,7 +21,6 @@
       overflow-x: hidden;
     }
 
-    /* خلفية طبيعة ملونة تظهر تدريجياً باحترافية عند تفعيل الكرة الصوتية */
     .nature-backdrop {
       position: fixed;
       inset: 0;
@@ -79,7 +78,6 @@
       backdrop-filter: blur(2px);
     }
 
-    /* رفع عناصر الواجهة فوق طبقة الطبيعة */
     .profile-wrapper,
     .model-selector-wrapper,
     .logo,
@@ -205,7 +203,7 @@
       letter-spacing: -0.5px;
       color: #2563eb;
     }
-    .logo span.o-orange { color: #f97316; }
+    .logo span.accent-orange { color: #f97316; }
 
     .orb {
       width: 40px;
@@ -614,7 +612,7 @@
   <div class="model-selector-wrapper" title="Select AI Model">
     <span>⚡</span>
     <select id="modelSelect">
-      <option value="auto" selected>Zeno Auto</option>
+      <option value="auto" selected>My AI Auto</option>
       <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout (Fast)</option>
       <option value="qwen/qwen3-32b">Qwen 3 32B (Code/Multilingual)</option>
       <option value="openai/gpt-oss-120b">GPT-OSS 120B (High Reasoning)</option>
@@ -644,7 +642,7 @@
   </div>
 
   <div class="logo">
-    Zen<span class="o-orange">o</span> AI
+    My <span class="accent-orange">AI</span>
   </div>
 
   <div class="chat-container">
@@ -666,7 +664,7 @@
       <div class="ai-status-text" id="aiStatus">اضغط على الدائرة للتحدث...</div>
 
       <div class="chat-input-container">
-        <div class="orb" id="aiOrb" onclick="startZenoListening()" title="اضغط للتحدث مع Zeno"></div>
+        <div class="orb" id="aiOrb" onclick="startMyAIListening()" title="اضغط للتحدث مع My AI"></div>
 
         <input type="file" id="image-input" accept="image/*" capture="environment" style="display: none;" onchange="handleImageUpload(event)">
         <button class="camera-btn" onclick="document.getElementById('image-input').click()" title="إرفاق أو التقاط صورة">
@@ -685,7 +683,7 @@
 
   <div class="modal-overlay" id="login-modal">
     <div class="modal-card">
-      <h3>تسجيل الدخول - Zeno</h3>
+      <h3>تسجيل الدخول - My AI</h3>
       <input type="text" id="login-username" placeholder="اسم المستخدم">
       <input type="password" id="login-password" placeholder="كلمة المرور">
       <button class="submit-btn" id="login-submit">دخول</button>
@@ -695,7 +693,7 @@
 
   <div class="modal-overlay" id="signup-modal">
     <div class="modal-card">
-      <h3>إنشاء حساب - Zeno</h3>
+      <h3>إنشاء حساب - My AI</h3>
       <input type="text" id="signup-username" placeholder="اسم المستخدم">
       <input type="text" id="signup-accountname" placeholder="الاسم الظاهر">
       <input type="password" id="signup-password" placeholder="كلمة المرور">
@@ -726,10 +724,10 @@
     const MAX_DOM_MESSAGES = 80;
     const SILENCE_TIMEOUT_MS = 2000;
 
-    const WELCOME_MESSAGE = "أهلاً بك في Zeno AI! اسألني باختصار وسأجيبك بوضوح وسرعة.";
+    const WELCOME_MESSAGE = "أهلاً بك في My AI! اسألني باختصار وسأجيبك بوضوح وسرعة.";
     const SYSTEM_PROMPT = {
       role: "system",
-      content: "You are Zeno AI, an intelligent, concise, and multilingual AI assistant developed by NC Studio. Always detect the user's language and reply naturally in the exact same language with short, clear, summarized answers without filler, without markdown symbols like ** or ## or ---, and always finish your sentences completely. In programming tasks, wrap code inside triple backticks (```). If asked who developed you, say NC Studio."
+      content: "You are My AI, an intelligent, concise, and multilingual AI assistant developed by NC Studio. Always detect the user's language and reply naturally in the exact same language with short, clear, summarized answers without filler, without markdown symbols like ** or ## or ---, and always finish your sentences completely. In programming tasks, wrap code inside triple backticks (```). If asked who developed you, say NC Studio."
     };
 
     let currentUser = null;
@@ -772,7 +770,7 @@
 
     function formatMessageContent(text) {
       const codeBlocks = [];
-      const placeholderPrefix = "__ZENO_CODE_BLOCK_";
+      const placeholderPrefix = "__MYAI_CODE_BLOCK_";
 
       let formatted = text.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
         const languageLabel = lang ? lang.toUpperCase() : 'CODE';
@@ -880,7 +878,7 @@
 
     function resolveAccountSessionId(user) {
       if (!user || !user.username) return null;
-      const key = 'zeno_user_session_' + user.username;
+      const key = 'myai_user_session_' + user.username;
       let sid = localStorage.getItem(key);
       if (!sid) {
         sid = 'user_' + user.username + '_' + Date.now();
@@ -906,7 +904,7 @@
         }]);
 
       if (error) {
-        console.error('Supabase chats_zeno_ai save error:', error.message);
+        console.error('Supabase chat save error:', error.message);
       }
     }
 
@@ -918,7 +916,7 @@
       if (!hasAccount() || !currentSessionId) return;
 
       chatRealtimeChannel = supabaseClient
-        .channel(`zeno_sync_${currentUser.username}_${currentSessionId}`)
+        .channel(`myai_sync_${currentUser.username}_${currentSessionId}`)
         .on(
           'postgres_changes',
           {
@@ -982,7 +980,7 @@
         .limit(400);
 
       if (error) {
-        console.error('Supabase chats_zeno_ai load error:', error.message);
+        console.error('Supabase chat load error:', error.message);
         renderWindowedHistory();
         return;
       }
@@ -1042,7 +1040,7 @@
         btn.innerHTML = `<div>جلسة دردشة</div><div style="font-size:10px;color:#64748b;margin-top:2px;">${dateStr}</div>`;
         btn.onclick = async () => {
           currentSessionId = item.sessionId;
-          localStorage.setItem('zeno_user_session_' + currentUser.username, currentSessionId);
+          localStorage.setItem('myai_user_session_' + currentUser.username, currentSessionId);
           document.getElementById('history-modal').style.display = 'none';
           await loadChatHistoryFromSupabase();
         };
@@ -1053,7 +1051,7 @@
     async function startNewChatSession() {
       if (hasAccount()) {
         const newSid = 'user_' + currentUser.username + '_' + Date.now();
-        localStorage.setItem('zeno_user_session_' + currentUser.username, newSid);
+        localStorage.setItem('myai_user_session_' + currentUser.username, newSid);
         currentSessionId = newSid;
         await loadChatHistoryFromSupabase();
       } else {
@@ -1107,7 +1105,7 @@
       else {
         alert('تم إنشاء الحساب بنجاح!');
         signupModal.style.display = 'none';
-        localStorage.setItem('zeno_current_user', JSON.stringify(data[0]));
+        localStorage.setItem('myai_current_user', JSON.stringify(data[0]));
         await updateUIAuthState(data[0]);
       }
     };
@@ -1123,14 +1121,14 @@
 
       if (error || !data || data.length === 0) alert('فشل تسجيل الدخول');
       else {
-        localStorage.setItem('zeno_current_user', JSON.stringify(data[0]));
+        localStorage.setItem('myai_current_user', JSON.stringify(data[0]));
         await updateUIAuthState(data[0]);
         loginModal.style.display = 'none';
       }
     };
 
     document.getElementById('btn-logout').onclick = async () => {
-      localStorage.removeItem('zeno_current_user');
+      localStorage.removeItem('myai_current_user');
       await updateUIAuthState(null);
     };
 
@@ -1162,7 +1160,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
-      const savedUser = localStorage.getItem('zeno_current_user');
+      const savedUser = localStorage.getItem('myai_current_user');
       let parsedUser = null;
       if (savedUser) {
         try { parsedUser = JSON.parse(savedUser); } catch (e) {}
@@ -1266,7 +1264,7 @@
       isProcessing = true;
       sendBtn.disabled = true;
       orb.className = "orb thinking";
-      aiStatus.innerText = "Zeno يفكر...";
+      aiStatus.innerText = "My AI يفكر...";
 
       const MAX_RETRIES = 3;
       const RETRY_DELAYS_MS = [1500, 3000, 5000];
@@ -1333,7 +1331,7 @@
             pushContextMessage("assistant", aiReply);
             appendMessage('assistant', aiReply, null, true);
             if (shouldSpeak) {
-              speakZenoReply(aiReply);
+              speakMyAIReply(aiReply);
             } else {
               orb.className = "orb";
               setVoiceBackdropActive(false);
@@ -1507,7 +1505,7 @@
       };
     }
 
-    function startZenoListening() {
+    function startMyAIListening() {
       if (!recognition) {
         alert("متصفحك لا يدعم التعرف على الصوت.");
         return;
@@ -1536,7 +1534,7 @@
         hasSpokenInSession = false;
         setVoiceBackdropActive(true);
         orb.className = "orb listening";
-        aiStatus.innerText = "Zeno يستمع... (توقف ثانيتين للرد)";
+        aiStatus.innerText = "My AI يستمع... (توقف ثانيتين للرد)";
         setTimeout(safeStartRecognition, 120);
       }
     }
@@ -1578,7 +1576,7 @@
       return chunks.length ? chunks : [text];
     }
 
-    function speakZenoReply(text) {
+    function speakMyAIReply(text) {
       clearSilenceTimer();
       if (!("speechSynthesis" in window)) {
         orb.className = "orb";
@@ -1631,7 +1629,7 @@
 
           utterance.onstart = () => {
             orb.className = "orb speaking";
-            aiStatus.innerText = "Zeno يتحدث...";
+            aiStatus.innerText = "My AI يتحدث...";
           };
 
           utterance.onend = () => {
