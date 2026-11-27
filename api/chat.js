@@ -25,21 +25,24 @@ function loadGroqKeys() {
 const GROQ_KEYS = loadGroqKeys();
 
 const DEFAULT_AUTO_MODEL = "llama-3.1-8b-instant";
+const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 const BROKEN_MODELS = new Set(["llama-3.3-70b-versatile"]);
+
 const FALLBACK_MODELS = [
   "llama-3.1-8b-instant",
-  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "openai/gpt-oss-20b",
   "qwen/qwen3-32b",
+  "moonshotai/kimi-k2-instruct-0905",
   "openai/gpt-oss-120b"
 ];
 
 const SHORT_CLEAR_SYSTEM_PROMPT =
-  "أنت مساعد ذكي باسم Zeno AI. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
+  "أنت مساعد ذكي باسم My AI مطور من قبل NC Studio. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
   "اجعل الرد ملخصاً ومباشراً ومناسباً للقراءة السريعة على الشاشة، وتجنب الإطالة أو الحشو أو الرموز الزائدة مثل --- و ## و **. " +
   "احرص دائماً على إنهاء جملك ونقاطك بشكل كامل وغير مقطوع.";
 
-const MAX_RETRIES_PER_KEY = 2;
-const RETRY_DELAYS_MS = [1500, 3000];
+const MAX_RETRIES_PER_KEY = 1;
+const RETRY_DELAYS_MS = [1000, 2000];
 
 let roundRobinIndex = 0;
 
@@ -129,12 +132,10 @@ export default async function handler(req, res) {
     const { messages, model, hasImage, imageBase64 } = req.body || {};
     const useVisionModel = Boolean(hasImage && imageBase64);
 
-    const primaryModel = useVisionModel
-      ? "meta-llama/llama-4-scout-17b-16e-instruct"
-      : sanitizeModel(model);
+    const primaryModel = useVisionModel ? VISION_MODEL : sanitizeModel(model);
 
     const candidateModels = useVisionModel
-      ? [primaryModel]
+      ? [primaryModel, ...FALLBACK_MODELS]
       : [primaryModel, ...FALLBACK_MODELS.filter((m) => m !== primaryModel)];
 
     const groqMessages = buildGroqMessages(messages, useVisionModel, imageBase64);
@@ -144,8 +145,6 @@ export default async function handler(req, res) {
     let lastStatus = 502;
 
     for (const modelName of candidateModels) {
-      let shouldTryAnotherModel = false;
-
       for (let i = 0; i < keysToTry.length; i++) {
         const apiKey = keysToTry[i];
 
@@ -167,36 +166,40 @@ export default async function handler(req, res) {
 
             const data = await response.json().catch(() => ({}));
 
-            if (response.ok) {
-              return res.status(200).json(data);
+            if (response.ok && data?.choices?.length > 0) {
+              return res.status(200).json({
+                ...data,
+                served_by_model: modelName
+              });
             }
 
             lastStatus = response.status;
             lastErrorData =
               response.status === 429
-                ? { error: "الضغط مرتفع حالياً، جاري إعادة المحاولة..." }
+                ? { error: "الضغط مرتفع حالياً، جاري التبديل إلى نموذج بديل..." }
                 : data;
 
             const errMsg = String(data?.error?.message || data?.error || "").toLowerCase();
             const isModelUnavailable =
+              response.status === 404 ||
               errMsg.includes("does not exist") ||
               errMsg.includes("do not have access") ||
+              errMsg.includes("decommissioned") ||
               errMsg.includes("model");
 
             if (isModelUnavailable) {
-              shouldTryAnotherModel = true;
               break;
             }
 
-            const isTransient = response.status === 429 || response.status >= 500;
+            const isTransient = response.status === 429 || response.status === 413 || response.status >= 500;
             if (isTransient && retry < MAX_RETRIES_PER_KEY) {
-              await sleep(RETRY_DELAYS_MS[retry] || 1500);
+              await sleep(RETRY_DELAYS_MS[retry] || 1000);
               continue;
             }
 
             if (isTransient) {
               if (i < keysToTry.length - 1) {
-                await sleep(250);
+                await sleep(150);
               }
               break;
             }
@@ -206,29 +209,21 @@ export default async function handler(req, res) {
             lastStatus = 502;
             lastErrorData = { error: "حدث خلل مؤقت في الشبكة، يرجى المحاولة مرة أخرى." };
             if (retry < MAX_RETRIES_PER_KEY) {
-              await sleep(RETRY_DELAYS_MS[retry] || 1500);
+              await sleep(RETRY_DELAYS_MS[retry] || 1000);
               continue;
             }
             if (i < keysToTry.length - 1) {
-              await sleep(200);
+              await sleep(150);
             }
             break;
           }
         }
-
-        if (shouldTryAnotherModel) {
-          break;
-        }
-      }
-
-      if (!shouldTryAnotherModel) {
-        break;
       }
     }
 
     return res.status(lastStatus).json(lastErrorData);
   } catch (err) {
-    console.error("Zeno /api/chat error:", err);
+    console.error("My AI /api/chat error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
