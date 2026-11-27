@@ -51,6 +51,17 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function buildSystemPrompt(userName) {
+  const cleanName = typeof userName === "string" ? userName.trim().slice(0, 40) : "";
+  if (!cleanName || cleanName === "Guest") {
+    return SHORT_CLEAR_SYSTEM_PROMPT;
+  }
+  return (
+    SHORT_CLEAR_SYSTEM_PROMPT +
+    ` اسم المستخدم الحالي هو "${cleanName}"؛ نادِهِ به بشكل طبيعي ومناسب عند الترحيب أو الحاجة.`
+  );
+}
+
 function normalizeLongAnswerSeparators(text) {
   if (typeof text !== "string" || !text.trim()) return text;
 
@@ -109,7 +120,7 @@ function parseDataUrl(dataUrl) {
   return { mimeType: match[1], base64Data: match[2] };
 }
 
-async function analyzeVisualWithGemini(promptText, framesList) {
+async function analyzeVisualWithGemini(promptText, framesList, systemPrompt) {
   if (!GEMINI_API_KEY) {
     return {
       ok: false,
@@ -144,7 +155,7 @@ async function analyzeVisualWithGemini(promptText, framesList) {
         signal: controller.signal,
         body: JSON.stringify({
           system_instruction: {
-            parts: [{ text: SHORT_CLEAR_SYSTEM_PROMPT }]
+            parts: [{ text: systemPrompt }]
           },
           contents: [{ role: "user", parts }],
           generationConfig: {
@@ -178,7 +189,7 @@ async function analyzeVisualWithGemini(promptText, framesList) {
 }
 
 // يحذف الرسائل القديمة ويبقي على آخر رسالتين فقط لتقليل التوكنات
-function buildStatelessGroqMessages(messages) {
+function buildStatelessGroqMessages(messages, systemPrompt) {
   const rawList = Array.isArray(messages) ? messages : [];
   const filtered = rawList.filter(
     (m) => m && (m.role === "user" || m.role === "assistant") && String(m.content || "").trim()
@@ -192,7 +203,7 @@ function buildStatelessGroqMessages(messages) {
         : String(m.content || "").trim().slice(0, 450)
   }));
 
-  return [{ role: "system", content: SHORT_CLEAR_SYSTEM_PROMPT }, ...recentTwo];
+  return [{ role: "system", content: systemPrompt }, ...recentTwo];
 }
 
 export default async function handler(req, res) {
@@ -201,7 +212,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, model, hasImage, imageBase64, videoFrames } = req.body || {};
+    const { messages, model, userName, hasImage, imageBase64, videoFrames } = req.body || {};
+    const activeSystemPrompt = buildSystemPrompt(userName);
+
     const framesList =
       Array.isArray(videoFrames) && videoFrames.length
         ? videoFrames.slice(0, 2)
@@ -220,7 +233,11 @@ export default async function handler(req, res) {
           ? lastUserMsg.content.trim()
           : "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار.";
 
-      const visionResult = await analyzeVisualWithGemini(promptText, framesList);
+      const visionResult = await analyzeVisualWithGemini(
+        promptText,
+        framesList,
+        activeSystemPrompt
+      );
       if (visionResult.ok) {
         return res.status(200).json({
           choices: [{ message: { role: "assistant", content: visionResult.replyText } }],
@@ -235,7 +252,7 @@ export default async function handler(req, res) {
     }
 
     const candidateModels = resolveModelList(model);
-    const groqMessages = buildStatelessGroqMessages(messages);
+    const groqMessages = buildStatelessGroqMessages(messages, activeSystemPrompt);
     const keysToTry = getOrderedKeys();
 
     let lastErrorData = { error: "الضغط مرتفع حالياً، يرجى المحاولة بعد قليل." };
