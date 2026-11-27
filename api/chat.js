@@ -73,19 +73,19 @@ function sanitizeModel(model) {
   return clean;
 }
 
-function buildGroqMessages(messages, hasImage, imageBase64, videoFrames = []) {
+function buildGroqMessages(messages, hasVisualInput, imageBase64, videoFrames = [], allowMultimodalArray = true) {
   const rawList = Array.isArray(messages) ? messages : [];
   const filtered = rawList.filter((m) => m && m.role !== "system");
   const safeMessages = filtered.slice(-2).map((m) => ({
     role: m.role === "assistant" ? "assistant" : "user",
-    content: typeof m.content === "string" ? m.content.slice(0, 1200) : m.content
+    content: typeof m.content === "string" ? m.content.slice(0, 1200) : String(m.content || "")
   }));
 
   const framesList = Array.isArray(videoFrames) && videoFrames.length
     ? videoFrames.slice(0, 4)
     : (imageBase64 ? [imageBase64] : []);
 
-  if (hasImage && framesList.length > 0) {
+  if (hasVisualInput && framesList.length > 0) {
     let lastUserIndex = -1;
     for (let i = safeMessages.length - 1; i >= 0; i--) {
       if (safeMessages[i]?.role === "user") {
@@ -99,23 +99,25 @@ function buildGroqMessages(messages, hasImage, imageBase64, videoFrames = []) {
         ? safeMessages[lastUserIndex].content
         : "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار.";
 
-    const visionContent = [
-      { type: "text", text: promptText },
-      ...framesList.map((frameUrl) => ({
-        type: "image_url",
-        image_url: { url: frameUrl }
-      }))
-    ];
+    const messageContent = allowMultimodalArray
+      ? [
+          { type: "text", text: promptText },
+          ...framesList.map((frameUrl) => ({
+            type: "image_url",
+            image_url: { url: frameUrl }
+          }))
+        ]
+      : `${promptText} (تم إرفاق ${framesList.length} صورة/لقطة مرئية)`;
 
     if (lastUserIndex >= 0) {
       safeMessages[lastUserIndex] = {
         ...safeMessages[lastUserIndex],
-        content: visionContent
+        content: messageContent
       };
     } else {
       safeMessages.push({
         role: "user",
-        content: visionContent
+        content: messageContent
       });
     }
   }
@@ -138,19 +140,25 @@ export default async function handler(req, res) {
       hasImage && (imageBase64 || (Array.isArray(videoFrames) && videoFrames.length > 0))
     );
 
-    const primaryModel = hasVisualInput ? VISION_MODEL : sanitizeModel(model);
-
     const candidateModels = hasVisualInput
-      ? [primaryModel, ...FALLBACK_MODELS]
-      : [primaryModel, ...FALLBACK_MODELS.filter((m) => m !== primaryModel)];
+      ? [VISION_MODEL, ...FALLBACK_MODELS.filter((m) => m !== VISION_MODEL)]
+      : [sanitizeModel(model), ...FALLBACK_MODELS.filter((m) => m !== sanitizeModel(model))];
 
-    const groqMessages = buildGroqMessages(messages, hasVisualInput, imageBase64, videoFrames);
     const keysToTry = getOrderedKeys();
 
     let lastErrorData = { error: "الضغط مرتفع حالياً، يرجى المحاولة بعد قليل." };
     let lastStatus = 502;
 
     for (const modelName of candidateModels) {
+      const isVisionCapable = modelName === VISION_MODEL;
+      const groqMessages = buildGroqMessages(
+        messages,
+        hasVisualInput,
+        imageBase64,
+        videoFrames,
+        hasVisualInput && isVisionCapable
+      );
+
       for (let i = 0; i < keysToTry.length; i++) {
         const apiKey = keysToTry[i];
 
@@ -186,14 +194,16 @@ export default async function handler(req, res) {
                 : data;
 
             const errMsg = String(data?.error?.message || data?.error || "").toLowerCase();
-            const isModelUnavailable =
+            const isModelOrContentError =
+              response.status === 400 ||
               response.status === 404 ||
               errMsg.includes("does not exist") ||
               errMsg.includes("do not have access") ||
               errMsg.includes("decommissioned") ||
+              errMsg.includes("must be a string") ||
               errMsg.includes("model");
 
-            if (isModelUnavailable) {
+            if (isModelOrContentError) {
               break;
             }
 
