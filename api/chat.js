@@ -38,6 +38,8 @@ const FALLBACK_MODELS = [
 const SHORT_CLEAR_SYSTEM_PROMPT =
   "أنت مساعد ذكي باسم My AI مطور من قبل NC Studio. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
   "اجعل الرد ملخصاً ومباشراً ومناسباً للقراءة السريعة على الشاشة، وتجنب الإطالة أو الحشو أو الرموز الزائدة مثل --- و ## و **. " +
+  "إذا كانت الإجابة طويلة أو تتضمن عدة نقاط أو محاور، افصل بين النقاط أو المحاور الرئيسية بالسطر الفاصل التالي مع ترك سطر فارغ قبله وسطر فارغ بعده:\n\n" +
+  "________________________\n\n" +
   "احرص دائماً على إنهاء جملك ونقاطك بشكل كامل وغير مقطوع.";
 
 const MAX_RETRIES_PER_KEY = 1;
@@ -46,6 +48,33 @@ let roundRobinIndex = 0;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeLongAnswerSeparators(text) {
+  if (typeof text !== "string" || !text.trim()) return text;
+
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const hasMultipleBlocks =
+    lines.filter((l) => l.trim().length > 0).length >= 4 || text.length >= 350;
+
+  if (!hasMultipleBlocks) {
+    return text.trim();
+  }
+
+  let formatted = text
+    .replace(/\r\n/g, "\n")
+    .replace(/\n?\s*_{6,}\s*\n?/g, "\n\n________________________\n\n");
+
+  const separator = "________________________";
+  const parts = formatted.split(separator);
+  if (parts.length > 1) {
+    formatted = parts
+      .map((part) => part.replace(/^\n+|\n+$/g, ""))
+      .join(`\n\n${separator}\n\n`)
+      .trim();
+  }
+
+  return formatted.replace(/\n{4,}/g, "\n\n\n").trim();
 }
 
 function getOrderedKeys() {
@@ -103,11 +132,15 @@ async function analyzeVisualWithGemini(promptText, framesList) {
   ];
 
   for (const gemModel of modelsToTry) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${gemModel}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           system_instruction: {
             parts: [{ text: SHORT_CLEAR_SYSTEM_PROMPT }]
@@ -121,15 +154,18 @@ async function analyzeVisualWithGemini(promptText, framesList) {
       });
 
       const data = await response.json().catch(() => ({}));
-      const replyText = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("").trim();
-      if (response.ok && replyText) {
+      const rawReplyText = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("").trim();
+      if (response.ok && rawReplyText) {
+        const replyText = normalizeLongAnswerSeparators(rawReplyText);
         return {
           ok: true,
           model: gemModel,
           replyText
         };
       }
-    } catch (e) {}
+    } catch (e) {} finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   return {
@@ -215,8 +251,21 @@ export default async function handler(req, res) {
             const data = await response.json().catch(() => ({}));
 
             if (response.ok && data?.choices?.length > 0) {
+              const firstMsg = data.choices[0]?.message;
+              const formattedContent =
+                typeof firstMsg?.content === "string"
+                  ? normalizeLongAnswerSeparators(firstMsg.content)
+                  : firstMsg?.content;
+
+              const updatedChoices = data.choices.map((ch, idx) =>
+                idx === 0 && ch?.message
+                  ? { ...ch, message: { ...ch.message, content: formattedContent } }
+                  : ch
+              );
+
               return res.status(200).json({
                 ...data,
+                choices: updatedChoices,
                 served_by_model: modelName
               });
             }
