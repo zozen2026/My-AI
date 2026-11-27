@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My AI</title>
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <style>
     *{box-sizing:border-box}
     body{margin:0;font-family:system-ui,sans-serif;background:#fff;color:#0f172a;height:100dvh;display:flex;flex-direction:column}
@@ -12,11 +11,12 @@
     .brand{font-size:20px;font-weight:800;background:linear-gradient(135deg,#2563eb,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
     .controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     select,button,input{font-family:inherit;font-size:13px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;padding:6px 10px;cursor:pointer}
+    .mic-btn.active{background:linear-gradient(135deg,#ef4444,#ec4899);color:#fff;border-color:#ef4444}
     .user-box{display:inline-flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:2px 8px;border-radius:12px}
     .avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#a855f7);color:#fff;display:grid;place-items:center;font-size:14px}
     .uname{font-size:11px;font-weight:700;color:#334155}
     #chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;max-width:800px;width:100%;margin:0 auto}
-    .msg{max-width:84%;padding:10px 13px;border-radius:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+    .msg{max-width:84%;padding:10px 13px;border-radius:14px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
     .msg.user{align-self:flex-start;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff}
     .msg.bot{align-self:flex-end;background:#f0f9ff;border:1px solid #bae6fd}
     .actions{display:flex;gap:5px;margin-top:6px}
@@ -24,9 +24,9 @@
     .msg.user .icon-btn{background:rgba(255,255,255,.22);color:#fff;border-color:rgba(255,255,255,.35)}
     .ico{width:14px;height:14px;display:block}
     footer{border-top:1px solid #e2e8f0;padding:10px 14px}
-    form{max-width:800px;margin:0 auto;display:flex;gap:8px}
+    form{max-width:800px;margin:0 auto;display:flex;gap:8px;align-items:center}
     textarea{flex:1;resize:none;border:1px solid #cbd5e1;border-radius:12px;padding:9px 12px;font-family:inherit;font-size:14px;min-height:42px;max-height:110px}
-    .send{background:linear-gradient(135deg,#2563eb,#ec4899);color:#fff;border:none;font-weight:700;padding:0 16px}
+    .send{background:linear-gradient(135deg,#2563eb,#ec4899);color:#fff;border:none;font-weight:700;padding:10px 16px}
     .backdrop{position:fixed;inset:0;background:rgba(15,23,42,.35);display:none;align-items:center;justify-content:center;padding:14px;z-index:50}
     .backdrop.open{display:flex}
     .modal{background:#fff;border-radius:14px;padding:16px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px}
@@ -45,9 +45,8 @@
         <option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
         <option value="qwen/qwen3-32b">Qwen3 32B</option>
       </select>
-      <button type="button" id="ttsBtn">🔊 صوت</button>
-      <select id="voiceSelect"><option value="">صوت افتراضي</option></select>
-      <button type="button" id="stopBtn">⏹</button>
+      <select id="voiceSelect"><option value="">صوت Microsoft التلقائي</option></select>
+      <button type="button" id="stopBtn">⏹ إيقاف الصوت</button>
       <div class="user-box" id="userBtn">
         <span class="avatar">👤</span>
         <span class="uname" id="userLabel" dir="ltr">Guest</span>
@@ -59,7 +58,8 @@
 
   <footer>
     <form id="chatForm">
-      <textarea id="promptInput" rows="1" placeholder="اكتب رسالتك..."></textarea>
+      <button type="button" id="micBtn" class="mic-btn" title="تحدث بالمايك ليتم الرد صوتياً">🎤</button>
+      <textarea id="promptInput" rows="1" placeholder="اكتب رسالتك أو اضغط المايك للتحدث..."></textarea>
       <button type="submit" class="send" id="sendBtn">إرسال</button>
     </form>
   </footer>
@@ -78,7 +78,6 @@
         <input type="text" id="authName" placeholder="اسم المستخدم" style="display:none" />
         <input type="email" id="authEmail" placeholder="البريد الإلكتروني" />
         <input type="password" id="authPass" placeholder="كلمة المرور" />
-        <div id="captchaBox" style="display:none"></div>
         <button type="button" id="authSubmit" class="send" style="padding:8px">تنفيذ</button>
       </div>
       <div id="loggedIn" style="display:none;flex-direction:column;gap:8px">
@@ -92,36 +91,105 @@
   <script>
     const SB_URL="https://lzvtnfdgynwczrkwlwhf.supabase.co";
     const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6dnRuZmRneW53Y3pya3dsd2hmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNDIxMTEsImV4cCI6MjEwNDcxODExMX0.w2hNlJ4SszyMBkUVjr1qiWNTTPxHMHkM9YOFtVP-pVI";
-    const TURNSTILE_SITE_KEY="ضع_مفتاح_Turnstile_Site_Key_هنا";
     const COPY_ICO=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
     const CHK_ICO=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>`;
     const EDIT_ICO=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`;
 
     const chatEl=document.getElementById("chat"),chatForm=document.getElementById("chatForm"),promptInput=document.getElementById("promptInput"),
-      sendBtn=document.getElementById("sendBtn"),modelSelect=document.getElementById("modelSelect"),ttsBtn=document.getElementById("ttsBtn"),
+      sendBtn=document.getElementById("sendBtn"),modelSelect=document.getElementById("modelSelect"),micBtn=document.getElementById("micBtn"),
       voiceSelect=document.getElementById("voiceSelect"),stopBtn=document.getElementById("stopBtn"),userBtn=document.getElementById("userBtn"),
       userLabel=document.getElementById("userLabel"),authModal=document.getElementById("authModal"),closeModal=document.getElementById("closeModal"),
       tabLogin=document.getElementById("tabLogin"),tabSignup=document.getElementById("tabSignup"),authName=document.getElementById("authName"),
-      authEmail=document.getElementById("authEmail"),authPass=document.getElementById("authPass"),captchaBox=document.getElementById("captchaBox"),
-      authSubmit=document.getElementById("authSubmit"),loggedOut=document.getElementById("loggedOut"),loggedIn=document.getElementById("loggedIn"),
-      userInfo=document.getElementById("userInfo"),logoutBtn=document.getElementById("logoutBtn"),authStatus=document.getElementById("authStatus");
+      authEmail=document.getElementById("authEmail"),authPass=document.getElementById("authPass"),authSubmit=document.getElementById("authSubmit"),
+      loggedOut=document.getElementById("loggedOut"),loggedIn=document.getElementById("loggedIn"),userInfo=document.getElementById("userInfo"),
+      logoutBtn=document.getElementById("logoutBtn"),authStatus=document.getElementById("authStatus");
 
-    let ttsOn=true,voices=[],mode="login",session=JSON.parse(localStorage.getItem("my_ai_sb")||"null"),history=[],busy=false,activeUserName="Guest",
-      captchaToken="",captchaWidgetId=null,lastAuthTry=0;
+    let voices=[],mode="login",session=JSON.parse(localStorage.getItem("my_ai_sb")||"null"),history=[],busy=false,activeUserName="Guest";
+    let voiceReplyEnabled=false,isListening=false,recognition=null;
 
-    function renderCaptcha(){
-      const hasSiteKey=TURNSTILE_SITE_KEY&&!TURNSTILE_SITE_KEY.startsWith("ضع_");
-      if(mode!=="signup"||!hasSiteKey||!window.turnstile){captchaBox.style.display="none";return;}
-      captchaBox.style.display="block";
-      captchaToken="";
-      if(captchaWidgetId!==null){window.turnstile.reset(captchaWidgetId);return;}
-      captchaWidgetId=window.turnstile.render("#captchaBox",{
-        sitekey:TURNSTILE_SITE_KEY,
-        callback:(t)=>{captchaToken=t||"";},
-        "expired-callback":()=>{captchaToken="";},
-        "error-callback":()=>{captchaToken="";}
+    function findBestMicrosoftVoice(list){
+      return list.find(v=>/microsoft/i.test(v.name)&&/ar/i.test(v.lang))
+        ||list.find(v=>/microsoft/i.test(v.name))
+        ||list.find(v=>/ar/i.test(v.lang))
+        ||list[0]||null;
+    }
+
+    function loadVoices(){
+      if(!("speechSynthesis"in window))return;
+      voices=window.speechSynthesis.getVoices()||[];
+      const msVoice=findBestMicrosoftVoice(voices);
+      voiceSelect.innerHTML='<option value="">صوت Microsoft التلقائي</option>';
+      voices.forEach((v,i)=>{
+        const o=document.createElement("option");
+        o.value=i;
+        o.textContent=`${v.name} (${v.lang})`;
+        if(msVoice&&v===msVoice)o.selected=true;
+        voiceSelect.appendChild(o);
       });
     }
+
+    function cleanForSpeech(text){
+      if(typeof text!=="string")return "";
+      return text
+        .replace(/_{2,}/g," ")
+        .replace(/-{2,}/g," ")
+        .replace(/[*#~`^=+|<>\\/{}\[\]]/g," ")
+        .replace(/[•▪▸►◆◇★☆]+/g," ")
+        .replace(/\s+/g," ")
+        .trim();
+    }
+
+    function speakMicrosoft(text){
+      if(!voiceReplyEnabled||!("speechSynthesis"in window)||!text)return;
+      const spokenText=cleanForSpeech(text);
+      if(!spokenText)return;
+      window.speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(spokenText);
+      const selectedIdx=parseInt(voiceSelect.value,10);
+      const chosen=(!Number.isNaN(selectedIdx)&&voices[selectedIdx])?voices[selectedIdx]:findBestMicrosoftVoice(voices);
+      if(chosen){u.voice=chosen;u.lang=chosen.lang;}
+      window.speechSynthesis.speak(u);
+    }
+
+    function setupSpeechRecognition(){
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SR)return null;
+      const rec=new SR();
+      rec.lang="ar-SA";
+      rec.interimResults=false;
+      rec.maxAlternatives=1;
+      rec.onstart=()=>{isListening=true;micBtn.classList.add("active");micBtn.textContent="🔴";};
+      rec.onresult=(ev)=>{
+        const spoken=(ev.results?.[0]?.[0]?.transcript||"").trim();
+        if(spoken){
+          voiceReplyEnabled=true;
+          promptInput.value=spoken;
+          send(spoken,false,true);
+        }
+      };
+      rec.onerror=()=>{isListening=false;micBtn.classList.remove("active");micBtn.textContent="🎤";};
+      rec.onend=()=>{isListening=false;micBtn.classList.remove("active");micBtn.textContent="🎤";};
+      return rec;
+    }
+
+    micBtn.onclick=()=>{
+      if(busy)return;
+      if(!recognition)recognition=setupSpeechRecognition();
+      if(!recognition){
+        voiceReplyEnabled=!voiceReplyEnabled;
+        micBtn.classList.toggle("active",voiceReplyEnabled);
+        return;
+      }
+      if(isListening){
+        recognition.stop();
+        voiceReplyEnabled=false;
+        micBtn.classList.remove("active");
+        return;
+      }
+      voiceReplyEnabled=true;
+      if("speechSynthesis"in window)window.speechSynthesis.cancel();
+      recognition.start();
+    };
 
     async function syncProfile(sess,name=""){
       if(!sess?.user?.id||!sess?.access_token)return null;
@@ -151,24 +219,7 @@
         userLabel.textContent="Guest";
         loggedOut.style.display="flex";loggedIn.style.display="none";
         userInfo.textContent="";
-        renderCaptcha();
       }
-    }
-
-    function loadVoices(){
-      if(!("speechSynthesis"in window))return;
-      voices=window.speechSynthesis.getVoices()||[];
-      voiceSelect.innerHTML='<option value="">صوت افتراضي</option>';
-      voices.forEach((v,i)=>{const o=document.createElement("option");o.value=i;o.textContent=`${v.name} (${v.lang})`;voiceSelect.appendChild(o);});
-    }
-
-    function speak(t){
-      if(!ttsOn||!("speechSynthesis"in window)||!t)return;
-      window.speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(t);
-      const v=voices[parseInt(voiceSelect.value,10)];
-      if(v){u.voice=v;u.lang=v.lang;}
-      window.speechSynthesis.speak(u);
     }
 
     function addMsg(role,text){
@@ -185,7 +236,10 @@
         eBtn.onclick=()=>{
           if(busy)return;
           const up=prompt("عدّل رسالتك:",body.textContent);
-          if(up&&up.trim()&&up.trim()!==body.textContent){body.textContent=up.trim();send(up.trim(),true);}
+          if(up&&up.trim()&&up.trim()!==body.textContent){
+            body.textContent=up.trim();
+            send(up.trim(),true,voiceReplyEnabled);
+          }
         };
         act.appendChild(eBtn);
       }
@@ -193,10 +247,18 @@
       box.appendChild(act);chatEl.appendChild(box);chatEl.scrollTop=chatEl.scrollHeight;return body;
     }
 
-    async function send(text,isEdit=false){
+    async function send(text,isEdit=false,shouldSpeak=false){
       if(busy||!text.trim())return;busy=true;sendBtn.disabled=true;
+      if("speechSynthesis"in window)window.speechSynthesis.cancel();
+
       if(!isEdit)addMsg("user",text);
-      history.push({role:"user",content:text});history=history.slice(-2);
+      if(isEdit&&history.length&&history[history.length-1].role==="user"){
+        history[history.length-1].content=text;
+      }else{
+        history.push({role:"user",content:text});
+      }
+      history=history.slice(-4);
+
       const botBody=addMsg("bot","...");
       try{
         const r=await fetch("/api/chat",{
@@ -207,7 +269,11 @@
         const d=await r.json().catch(()=>({}));
         const rep=d?.choices?.[0]?.message?.content||d?.error||"تعذر الرد.";
         botBody.textContent=typeof rep==="string"?rep:JSON.stringify(rep);
-        if(r.ok&&typeof rep==="string"){history.push({role:"assistant",content:rep});history=history.slice(-2);speak(rep);}
+        if(r.ok&&typeof rep==="string"){
+          history.push({role:"assistant",content:rep});
+          history=history.slice(-4);
+          if(shouldSpeak&&voiceReplyEnabled)speakMicrosoft(rep);
+        }
       }catch{botBody.textContent="خطأ في الاتصال.";}
       finally{busy=false;sendBtn.disabled=false;chatEl.scrollTop=chatEl.scrollHeight;}
     }
@@ -215,54 +281,42 @@
     userBtn.onclick=()=>{authStatus.textContent="";refreshUser();authModal.classList.add("open");};
     closeModal.onclick=()=>authModal.classList.remove("open");
     authModal.onclick=(e)=>{if(e.target===authModal)authModal.classList.remove("open");};
-    tabLogin.onclick=()=>{mode="login";tabLogin.classList.add("active");tabSignup.classList.remove("active");authName.style.display="none";captchaBox.style.display="none";authStatus.textContent="";};
-    tabSignup.onclick=()=>{mode="signup";tabSignup.classList.add("active");tabLogin.classList.remove("active");authName.style.display="block";authStatus.textContent="";renderCaptcha();};
+    tabLogin.onclick=()=>{mode="login";tabLogin.classList.add("active");tabSignup.classList.remove("active");authName.style.display="none";authStatus.textContent="";};
+    tabSignup.onclick=()=>{mode="signup";tabSignup.classList.add("active");tabLogin.classList.remove("active");authName.style.display="block";authStatus.textContent="";};
 
     authSubmit.onclick=async()=>{
-      const now=Date.now();
-      if(now-lastAuthTry<3500){authStatus.textContent="انتظر قليلاً ثم أعد المحاولة.";return;}
-      lastAuthTry=now;
-
       const name=authName.value.trim(),email=authEmail.value.trim(),password=authPass.value;
       if(!email||!password){authStatus.textContent="أدخل البريد وكلمة المرور.";return;}
-
-      const hasSiteKey=TURNSTILE_SITE_KEY&&!TURNSTILE_SITE_KEY.startsWith("ضع_");
-      if(mode==="signup"&&hasSiteKey&&!captchaToken){authStatus.textContent="أكمل التحقق الأمني أولاً.";return;}
-
-      authStatus.textContent="جاري التنفيذ...";authSubmit.disabled=true;
-      try{
-        const ep=mode==="login"?"token?grant_type=password":"signup";
-        const body={email,password};
-        if(mode==="signup"){
-          if(name)body.data={display_name:name};
-          if(hasSiteKey&&captchaToken)body.gotrue_meta_security={captcha_token:captchaToken};
-        }
-        const r=await fetch(`${SB_URL}/auth/v1/${ep}`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});
-        const d=await r.json().catch(()=>({}));
-        if(!r.ok){
-          authStatus.textContent=d?.msg||d?.error_description||"فشل الطلب.";
-          if(mode==="signup"&&captchaWidgetId!==null&&window.turnstile){captchaToken="";window.turnstile.reset(captchaWidgetId);}
-          return;
-        }
-        if(d?.access_token){
-          session=d;localStorage.setItem("my_ai_sb",JSON.stringify(session));
-          await syncProfile(session,name);await refreshUser();
-          authStatus.textContent="تم الحفظ بنجاح.";
-          setTimeout(()=>authModal.classList.remove("open"),500);
-        }else{
-          authStatus.textContent="تم إنشاء الحساب. فعّل الدخول المباشر من Supabase بإيقاف Confirm email.";
-        }
-      }catch{
-        authStatus.textContent="خطأ في الاتصال.";
-      }finally{
-        authSubmit.disabled=false;
+      authStatus.textContent="جاري التنفيذ...";
+      const ep=mode==="login"?"token?grant_type=password":"signup";
+      const body={email,password};
+      if(mode==="signup"&&name)body.data={display_name:name};
+      const r=await fetch(`${SB_URL}/auth/v1/${ep}`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){authStatus.textContent=d?.msg||d?.error_description||"فشل الطلب.";return;}
+      if(d?.access_token){
+        session=d;localStorage.setItem("my_ai_sb",JSON.stringify(session));
+        await syncProfile(session,name);await refreshUser();
+        authStatus.textContent="تم الحفظ بنجاح.";
+        setTimeout(()=>authModal.classList.remove("open"),500);
+      }else{
+        authStatus.textContent="تم إنشاء الحساب.";
       }
     };
 
     logoutBtn.onclick=()=>{session=null;localStorage.removeItem("my_ai_sb");refreshUser();authStatus.textContent="تم الخروج.";};
-    ttsBtn.onclick=()=>{ttsOn=!ttsOn;ttsBtn.textContent=ttsOn?"🔊 صوت":"🔇 صامت";if(!ttsOn&&"speechSynthesis"in window)window.speechSynthesis.cancel();};
-    stopBtn.onclick=()=>{if("speechSynthesis"in window)window.speechSynthesis.cancel();};
-    chatForm.onsubmit=(e)=>{e.preventDefault();const t=promptInput.value.trim();if(!t)return;promptInput.value="";send(t,false);};
+    stopBtn.onclick=()=>{voiceReplyEnabled=false;micBtn.classList.remove("active");if("speechSynthesis"in window)window.speechSynthesis.cancel();};
+
+    chatForm.onsubmit=(e)=>{
+      e.preventDefault();
+      const t=promptInput.value.trim();
+      if(!t)return;
+      promptInput.value="";
+      voiceReplyEnabled=false;
+      micBtn.classList.remove("active");
+      send(t,false,false);
+    };
+
     promptInput.onkeydown=(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();chatForm.requestSubmit();}};
     if("speechSynthesis"in window){loadVoices();window.speechSynthesis.onvoiceschanged=loadVoices;}
     refreshUser();addMsg("bot","أهلاً بك في My AI.");
