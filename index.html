@@ -272,6 +272,7 @@
           <button type="button" id="tabLogin" class="active">تسجيل دخول</button>
           <button type="button" id="tabSignup">إنشاء حساب</button>
         </div>
+        <input type="text" id="authName" placeholder="الاسم (اختياري)" style="display:none;" />
         <input type="email" id="authEmail" placeholder="البريد الإلكتروني" />
         <input type="password" id="authPassword" placeholder="كلمة المرور (6 أحرف فأكثر)" />
         <button type="button" id="authSubmitBtn" class="send-btn" style="padding:9px;">دخول</button>
@@ -279,6 +280,7 @@
 
       <div id="loggedInBox" style="display:none;flex-direction:column;gap:8px;">
         <div id="currentUserEmail" style="font-size:13px;word-break:break-all;"></div>
+        <div id="savedProfileInfo" style="font-size:12px;color:#047857;"></div>
         <button type="button" id="logoutBtn">تسجيل خروج</button>
       </div>
 
@@ -309,12 +311,14 @@
     const closeModalBtn = document.getElementById("closeModalBtn");
     const tabLogin = document.getElementById("tabLogin");
     const tabSignup = document.getElementById("tabSignup");
+    const authName = document.getElementById("authName");
     const authEmail = document.getElementById("authEmail");
     const authPassword = document.getElementById("authPassword");
     const authSubmitBtn = document.getElementById("authSubmitBtn");
     const loggedOutBox = document.getElementById("loggedOutBox");
     const loggedInBox = document.getElementById("loggedInBox");
     const currentUserEmail = document.getElementById("currentUserEmail");
+    const savedProfileInfo = document.getElementById("savedProfileInfo");
     const logoutBtn = document.getElementById("logoutBtn");
     const authStatus = document.getElementById("authStatus");
 
@@ -325,29 +329,99 @@
     let messagesHistory = [];
     let busy = false;
 
-    function updateUserUI() {
+    async function saveUserProfile(authSession, customName = "") {
+      const user = authSession?.user;
+      const token = authSession?.access_token;
+      if (!user?.id || !user?.email || !token) {
+        return { saved: false, reason: "no_session" };
+      }
+
+      const displayName = (customName || user.user_metadata?.display_name || user.email.split("@")[0]).trim();
+      const payload = {
+        id: user.id,
+        email: user.email,
+        display_name: displayName,
+        last_seen_at: new Date().toISOString()
+      };
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?on_conflict=id`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${token}`,
+            "Prefer": "resolution=merge-duplicates,return=representation"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ([]));
+        if (!res.ok) {
+          return { saved: false, reason: data?.message || "table_error" };
+        }
+        return { saved: true, row: Array.isArray(data) ? data[0] : data };
+      } catch {
+        return { saved: false, reason: "network_error" };
+      }
+    }
+
+    async function fetchSavedProfile(authSession) {
+      const user = authSession?.user;
+      const token = authSession?.access_token;
+      if (!user?.id || !token) return null;
+
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=display_name,email,created_at`,
+          {
+            headers: {
+              "apikey": SUPABASE_ANON_KEY,
+              "Authorization": `Bearer ${token}`
+            }
+          }
+        );
+        if (!res.ok) return null;
+        const rows = await res.json().catch(() => ([]));
+        return rows[0] || null;
+      } catch {
+        return null;
+      }
+    }
+
+    async function updateUserUI() {
       const user = session?.user;
       if (user?.email) {
-        userLabel.textContent = user.email.split("@")[0];
+        const profile = await fetchSavedProfile(session);
+        const shownName = profile?.display_name || user.email.split("@")[0];
+        userLabel.textContent = shownName;
         loggedOutBox.style.display = "none";
         loggedInBox.style.display = "flex";
         currentUserEmail.textContent = "مسجل كـ: " + user.email;
+        savedProfileInfo.textContent = profile
+          ? `محفوظ في جدول profiles (${profile.display_name})`
+          : "الحساب مسجل في Auth (أنشئ جدول profiles لحفظ بياناته في قاعدة البيانات)";
       } else {
         userLabel.textContent = "Guest";
         loggedOutBox.style.display = "flex";
         loggedInBox.style.display = "none";
         currentUserEmail.textContent = "";
+        savedProfileInfo.textContent = "";
       }
     }
 
-    async function sbAuth(endpoint, email, password) {
+    async function sbAuth(endpoint, email, password, displayName = "") {
+      const body = { email, password };
+      if (endpoint === "signup" && displayName) {
+        body.data = { display_name: displayName };
+      }
       const res = await fetch(`${SUPABASE_URL}/auth/v1/${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "apikey": SUPABASE_ANON_KEY
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify(body)
       });
       const data = await res.json().catch(() => ({}));
       return { ok: res.ok, data };
@@ -470,7 +544,11 @@
       }
     }
 
-    userBadgeBtn.onclick = () => { authStatus.textContent = ""; authModal.classList.add("open"); };
+    userBadgeBtn.onclick = () => {
+      authStatus.textContent = "";
+      updateUserUI();
+      authModal.classList.add("open");
+    };
     closeModalBtn.onclick = () => authModal.classList.remove("open");
     authModal.onclick = (e) => { if (e.target === authModal) authModal.classList.remove("open"); };
 
@@ -478,6 +556,7 @@
       authMode = "login";
       tabLogin.classList.add("active");
       tabSignup.classList.remove("active");
+      authName.style.display = "none";
       authSubmitBtn.textContent = "دخول";
       authStatus.textContent = "";
     };
@@ -486,11 +565,13 @@
       authMode = "signup";
       tabSignup.classList.add("active");
       tabLogin.classList.remove("active");
+      authName.style.display = "block";
       authSubmitBtn.textContent = "إنشاء حساب";
       authStatus.textContent = "";
     };
 
     authSubmitBtn.onclick = async () => {
+      const nameVal = authName.value.trim();
       const email = authEmail.value.trim();
       const password = authPassword.value;
       if (!email || !password) {
@@ -499,7 +580,7 @@
       }
       authStatus.textContent = "جاري التنفيذ...";
       const endpoint = authMode === "login" ? "token?grant_type=password" : "signup";
-      const { ok, data } = await sbAuth(endpoint, email, password);
+      const { ok, data } = await sbAuth(endpoint, email, password, nameVal);
 
       if (!ok) {
         authStatus.textContent = data?.msg || data?.error_description || "فشلت العملية.";
@@ -509,11 +590,14 @@
       if (data?.access_token) {
         session = data;
         localStorage.setItem("my_ai_sb_session", JSON.stringify(session));
-        updateUserUI();
-        authStatus.textContent = "تم بنجاح.";
-        setTimeout(() => authModal.classList.remove("open"), 500);
+        const saveResult = await saveUserProfile(session, nameVal);
+        await updateUserUI();
+        authStatus.textContent = saveResult.saved
+          ? "تم إنشاء الحساب وحفظه في Supabase."
+          : "تم الدخول، لكن لم يُحفظ في جدول profiles بعد.";
+        setTimeout(() => authModal.classList.remove("open"), 700);
       } else {
-        authStatus.textContent = "تم إنشاء الحساب. تحقق من بريدك لتأكيده ثم سجّل الدخول.";
+        authStatus.textContent = "تم إنشاء الحساب في Supabase. أكّد بريدك ثم سجّل الدخول ليُحفظ في جدول profiles.";
       }
     };
 
