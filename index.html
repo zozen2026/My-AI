@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My AI</title>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <style>
     *{box-sizing:border-box}
     body{margin:0;font-family:system-ui,sans-serif;background:#fff;color:#0f172a;height:100dvh;display:flex;flex-direction:column}
@@ -77,6 +78,7 @@
         <input type="text" id="authName" placeholder="اسم المستخدم" style="display:none" />
         <input type="email" id="authEmail" placeholder="البريد الإلكتروني" />
         <input type="password" id="authPass" placeholder="كلمة المرور" />
+        <div id="captchaBox" style="display:none"></div>
         <button type="button" id="authSubmit" class="send" style="padding:8px">تنفيذ</button>
       </div>
       <div id="loggedIn" style="display:none;flex-direction:column;gap:8px">
@@ -90,6 +92,7 @@
   <script>
     const SB_URL="https://lzvtnfdgynwczrkwlwhf.supabase.co";
     const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6dnRuZmRneW53Y3pya3dsd2hmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNDIxMTEsImV4cCI6MjEwNDcxODExMX0.w2hNlJ4SszyMBkUVjr1qiWNTTPxHMHkM9YOFtVP-pVI";
+    const TURNSTILE_SITE_KEY="ضع_مفتاح_Turnstile_Site_Key_هنا";
     const COPY_ICO=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
     const CHK_ICO=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>`;
     const EDIT_ICO=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`;
@@ -99,11 +102,26 @@
       voiceSelect=document.getElementById("voiceSelect"),stopBtn=document.getElementById("stopBtn"),userBtn=document.getElementById("userBtn"),
       userLabel=document.getElementById("userLabel"),authModal=document.getElementById("authModal"),closeModal=document.getElementById("closeModal"),
       tabLogin=document.getElementById("tabLogin"),tabSignup=document.getElementById("tabSignup"),authName=document.getElementById("authName"),
-      authEmail=document.getElementById("authEmail"),authPass=document.getElementById("authPass"),authSubmit=document.getElementById("authSubmit"),
-      loggedOut=document.getElementById("loggedOut"),loggedIn=document.getElementById("loggedIn"),userInfo=document.getElementById("userInfo"),
-      logoutBtn=document.getElementById("logoutBtn"),authStatus=document.getElementById("authStatus");
+      authEmail=document.getElementById("authEmail"),authPass=document.getElementById("authPass"),captchaBox=document.getElementById("captchaBox"),
+      authSubmit=document.getElementById("authSubmit"),loggedOut=document.getElementById("loggedOut"),loggedIn=document.getElementById("loggedIn"),
+      userInfo=document.getElementById("userInfo"),logoutBtn=document.getElementById("logoutBtn"),authStatus=document.getElementById("authStatus");
 
-    let ttsOn=true,voices=[],mode="login",session=JSON.parse(localStorage.getItem("my_ai_sb")||"null"),history=[],busy=false,activeUserName="Guest";
+    let ttsOn=true,voices=[],mode="login",session=JSON.parse(localStorage.getItem("my_ai_sb")||"null"),history=[],busy=false,activeUserName="Guest",
+      captchaToken="",captchaWidgetId=null,lastAuthTry=0;
+
+    function renderCaptcha(){
+      const hasSiteKey=TURNSTILE_SITE_KEY&&!TURNSTILE_SITE_KEY.startsWith("ضع_");
+      if(mode!=="signup"||!hasSiteKey||!window.turnstile){captchaBox.style.display="none";return;}
+      captchaBox.style.display="block";
+      captchaToken="";
+      if(captchaWidgetId!==null){window.turnstile.reset(captchaWidgetId);return;}
+      captchaWidgetId=window.turnstile.render("#captchaBox",{
+        sitekey:TURNSTILE_SITE_KEY,
+        callback:(t)=>{captchaToken=t||"";},
+        "expired-callback":()=>{captchaToken="";},
+        "error-callback":()=>{captchaToken="";}
+      });
+    }
 
     async function syncProfile(sess,name=""){
       if(!sess?.user?.id||!sess?.access_token)return null;
@@ -133,6 +151,7 @@
         userLabel.textContent="Guest";
         loggedOut.style.display="flex";loggedIn.style.display="none";
         userInfo.textContent="";
+        renderCaptcha();
       }
     }
 
@@ -196,26 +215,47 @@
     userBtn.onclick=()=>{authStatus.textContent="";refreshUser();authModal.classList.add("open");};
     closeModal.onclick=()=>authModal.classList.remove("open");
     authModal.onclick=(e)=>{if(e.target===authModal)authModal.classList.remove("open");};
-    tabLogin.onclick=()=>{mode="login";tabLogin.classList.add("active");tabSignup.classList.remove("active");authName.style.display="none";authStatus.textContent="";};
-    tabSignup.onclick=()=>{mode="signup";tabSignup.classList.add("active");tabLogin.classList.remove("active");authName.style.display="block";authStatus.textContent="";};
+    tabLogin.onclick=()=>{mode="login";tabLogin.classList.add("active");tabSignup.classList.remove("active");authName.style.display="none";captchaBox.style.display="none";authStatus.textContent="";};
+    tabSignup.onclick=()=>{mode="signup";tabSignup.classList.add("active");tabLogin.classList.remove("active");authName.style.display="block";authStatus.textContent="";renderCaptcha();};
 
     authSubmit.onclick=async()=>{
+      const now=Date.now();
+      if(now-lastAuthTry<3500){authStatus.textContent="انتظر قليلاً ثم أعد المحاولة.";return;}
+      lastAuthTry=now;
+
       const name=authName.value.trim(),email=authEmail.value.trim(),password=authPass.value;
       if(!email||!password){authStatus.textContent="أدخل البريد وكلمة المرور.";return;}
-      authStatus.textContent="جاري التنفيذ...";
-      const ep=mode==="login"?"token?grant_type=password":"signup";
-      const body={email,password};
-      if(mode==="signup"&&name)body.data={display_name:name};
-      const r=await fetch(`${SB_URL}/auth/v1/${ep}`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});
-      const d=await r.json().catch(()=>({}));
-      if(!r.ok){authStatus.textContent=d?.msg||d?.error_description||"فشل الطلب.";return;}
-      if(d?.access_token){
-        session=d;localStorage.setItem("my_ai_sb",JSON.stringify(session));
-        await syncProfile(session,name);await refreshUser();
-        authStatus.textContent="تم الحفظ بنجاح.";
-        setTimeout(()=>authModal.classList.remove("open"),500);
-      }else{
-        authStatus.textContent="تم إنشاء الحساب. أكّد بريدك ثم سجل الدخول ليظهر اسمك.";
+
+      const hasSiteKey=TURNSTILE_SITE_KEY&&!TURNSTILE_SITE_KEY.startsWith("ضع_");
+      if(mode==="signup"&&hasSiteKey&&!captchaToken){authStatus.textContent="أكمل التحقق الأمني أولاً.";return;}
+
+      authStatus.textContent="جاري التنفيذ...";authSubmit.disabled=true;
+      try{
+        const ep=mode==="login"?"token?grant_type=password":"signup";
+        const body={email,password};
+        if(mode==="signup"){
+          if(name)body.data={display_name:name};
+          if(hasSiteKey&&captchaToken)body.gotrue_meta_security={captcha_token:captchaToken};
+        }
+        const r=await fetch(`${SB_URL}/auth/v1/${ep}`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok){
+          authStatus.textContent=d?.msg||d?.error_description||"فشل الطلب.";
+          if(mode==="signup"&&captchaWidgetId!==null&&window.turnstile){captchaToken="";window.turnstile.reset(captchaWidgetId);}
+          return;
+        }
+        if(d?.access_token){
+          session=d;localStorage.setItem("my_ai_sb",JSON.stringify(session));
+          await syncProfile(session,name);await refreshUser();
+          authStatus.textContent="تم الحفظ بنجاح.";
+          setTimeout(()=>authModal.classList.remove("open"),500);
+        }else{
+          authStatus.textContent="تم إنشاء الحساب. فعّل الدخول المباشر من Supabase بإيقاف Confirm email.";
+        }
+      }catch{
+        authStatus.textContent="خطأ في الاتصال.";
+      }finally{
+        authSubmit.disabled=false;
       }
     };
 
