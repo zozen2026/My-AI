@@ -26,13 +26,13 @@ const GROQ_KEYS = loadGroqKeys();
 
 const DEFAULT_AUTO_MODEL = "llama-3.1-8b-instant";
 const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-const BROKEN_MODELS = new Set(["llama-3.3-70b-versatile"]);
 
 const FALLBACK_MODELS = [
   "llama-3.1-8b-instant",
   "openai/gpt-oss-20b",
   "qwen/qwen3-32b",
   "moonshotai/kimi-k2-instruct-0905",
+  "llama-3.3-70b-versatile",
   "openai/gpt-oss-120b"
 ];
 
@@ -67,10 +67,7 @@ function sanitizeModel(model) {
     return DEFAULT_AUTO_MODEL;
   }
   const clean = model.trim();
-  if (!clean || BROKEN_MODELS.has(clean)) {
-    return DEFAULT_AUTO_MODEL;
-  }
-  return clean;
+  return clean || DEFAULT_AUTO_MODEL;
 }
 
 function buildGroqMessages(messages, hasVisualInput, imageBase64, videoFrames = [], allowMultimodalArray = true) {
@@ -107,7 +104,7 @@ function buildGroqMessages(messages, hasVisualInput, imageBase64, videoFrames = 
             image_url: { url: frameUrl }
           }))
         ]
-      : `${promptText} (تم إرفاق ${framesList.length} صورة/لقطة مرئية)`;
+      : `${promptText} [ملاحظة: أرفق المستخدم ${framesList.length} لقطة/صورة في واجهة My AI؛ أجب بوضوح واختصار وتجنب عبارة "لا أستطيع تحليل الصور"]`;
 
     if (lastUserIndex >= 0) {
       safeMessages[lastUserIndex] = {
@@ -150,13 +147,13 @@ export default async function handler(req, res) {
     let lastStatus = 502;
 
     for (const modelName of candidateModels) {
-      const isVisionCapable = modelName === VISION_MODEL;
+      const isVisionModel = modelName === VISION_MODEL;
       const groqMessages = buildGroqMessages(
         messages,
         hasVisualInput,
         imageBase64,
         videoFrames,
-        hasVisualInput && isVisionCapable
+        hasVisualInput && isVisionModel
       );
 
       for (let i = 0; i < keysToTry.length; i++) {
@@ -194,7 +191,7 @@ export default async function handler(req, res) {
                 : data;
 
             const errMsg = String(data?.error?.message || data?.error || "").toLowerCase();
-            const isModelOrContentError =
+            const isModelOrFormatError =
               response.status === 400 ||
               response.status === 404 ||
               errMsg.includes("does not exist") ||
@@ -203,7 +200,7 @@ export default async function handler(req, res) {
               errMsg.includes("must be a string") ||
               errMsg.includes("model");
 
-            if (isModelOrContentError) {
+            if (isModelOrFormatError) {
               break;
             }
 
