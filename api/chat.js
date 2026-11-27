@@ -23,10 +23,9 @@ function loadGroqKeys() {
 }
 
 const GROQ_KEYS = loadGroqKeys();
+const GEMINI_API_KEY = typeof process.env.GEMINI_API_KEY === "string" ? process.env.GEMINI_API_KEY.trim() : "";
 
 const DEFAULT_AUTO_MODEL = "llama-3.1-8b-instant";
-const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-
 const FALLBACK_MODELS = [
   "llama-3.1-8b-instant",
   "openai/gpt-oss-20b",
@@ -43,7 +42,6 @@ const SHORT_CLEAR_SYSTEM_PROMPT =
 
 const MAX_RETRIES_PER_KEY = 1;
 const RETRY_DELAYS_MS = [1000, 2000];
-
 let roundRobinIndex = 0;
 
 function sleep(ms) {
@@ -70,55 +68,83 @@ function sanitizeModel(model) {
   return clean || DEFAULT_AUTO_MODEL;
 }
 
-function buildGroqMessages(messages, hasVisualInput, imageBase64, videoFrames = [], allowMultimodalArray = true) {
+function parseDataUrl(dataUrl) {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(String(dataUrl || ""));
+  if (!match) return null;
+  return { mimeType: match[1], base64Data: match[2] };
+}
+
+async function analyzeVisualWithGemini(promptText, framesList) {
+  if (!GEMINI_API_KEY) {
+    return {
+      ok: false,
+      error: "لتحليل الصور والفيديو فعلياً، أضف مفتاح GEMINI_API_KEY المجاني في إعدادات Vercel."
+    };
+  }
+
+  const parts = [{ text: promptText }];
+  for (const frame of framesList.slice(0, 4)) {
+    const parsed = parseDataUrl(frame);
+    if (parsed) {
+      parts.push({
+        inline_data: {
+          mime_type: parsed.mimeType,
+          data: parsed.base64Data
+        }
+      });
+    }
+  }
+
+  const modelsToTry = [
+    "gemini-4-argon",
+    "gemini-4-hydrogen",
+    "gemini-3.8-flash",
+    "gemini-2.5-flash"
+  ];
+
+  for (const gemModel of modelsToTry) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${gemModel}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: SHORT_CLEAR_SYSTEM_PROMPT }]
+          },
+          contents: [{ role: "user", parts }],
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 750
+          }
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      const replyText = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("").trim();
+      if (response.ok && replyText) {
+        return {
+          ok: true,
+          model: gemModel,
+          replyText
+        };
+      }
+    } catch (e) {}
+  }
+
+  return {
+    ok: false,
+    error: "تعذر تحليل الصورة حالياً؛ تأكد من صلاحية GEMINI_API_KEY."
+  };
+}
+
+function buildGroqMessages(messages) {
   const rawList = Array.isArray(messages) ? messages : [];
   const filtered = rawList.filter((m) => m && m.role !== "system");
   const safeMessages = filtered.slice(-2).map((m) => ({
     role: m.role === "assistant" ? "assistant" : "user",
     content: typeof m.content === "string" ? m.content.slice(0, 1200) : String(m.content || "")
   }));
-
-  const framesList = Array.isArray(videoFrames) && videoFrames.length
-    ? videoFrames.slice(0, 4)
-    : (imageBase64 ? [imageBase64] : []);
-
-  if (hasVisualInput && framesList.length > 0) {
-    let lastUserIndex = -1;
-    for (let i = safeMessages.length - 1; i >= 0; i--) {
-      if (safeMessages[i]?.role === "user") {
-        lastUserIndex = i;
-        break;
-      }
-    }
-
-    const promptText =
-      lastUserIndex >= 0 && typeof safeMessages[lastUserIndex].content === "string"
-        ? safeMessages[lastUserIndex].content
-        : "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار.";
-
-    const messageContent = allowMultimodalArray
-      ? [
-          { type: "text", text: promptText },
-          ...framesList.map((frameUrl) => ({
-            type: "image_url",
-            image_url: { url: frameUrl }
-          }))
-        ]
-      : `${promptText} [ملاحظة: أرفق المستخدم ${framesList.length} لقطة/صورة في واجهة My AI؛ أجب بوضوح واختصار وتجنب عبارة "لا أستطيع تحليل الصور"]`;
-
-    if (lastUserIndex >= 0) {
-      safeMessages[lastUserIndex] = {
-        ...safeMessages[lastUserIndex],
-        content: messageContent
-      };
-    } else {
-      safeMessages.push({
-        role: "user",
-        content: messageContent
-      });
-    }
-  }
-
   return [{ role: "system", content: SHORT_CLEAR_SYSTEM_PROMPT }, ...safeMessages];
 }
 
@@ -127,35 +153,46 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  if (!GROQ_KEYS.length) {
-    return res.status(500).json({ error: "No Groq API keys configured on server" });
-  }
-
   try {
     const { messages, model, hasImage, imageBase64, videoFrames } = req.body || {};
-    const hasVisualInput = Boolean(
-      hasImage && (imageBase64 || (Array.isArray(videoFrames) && videoFrames.length > 0))
-    );
+    const framesList = Array.isArray(videoFrames) && videoFrames.length
+      ? videoFrames.slice(0, 4)
+      : (imageBase64 ? [imageBase64] : []);
 
-    const candidateModels = hasVisualInput
-      ? [VISION_MODEL, ...FALLBACK_MODELS.filter((m) => m !== VISION_MODEL)]
-      : [sanitizeModel(model), ...FALLBACK_MODELS.filter((m) => m !== sanitizeModel(model))];
+    const hasVisualInput = Boolean(hasImage && framesList.length > 0);
 
+    if (hasVisualInput) {
+      const lastUserMsg = Array.isArray(messages)
+        ? [...messages].reverse().find((m) => m && m.role === "user")
+        : null;
+      const promptText =
+        typeof lastUserMsg?.content === "string" && lastUserMsg.content.trim()
+          ? lastUserMsg.content.trim()
+          : "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار.";
+
+      const visionResult = await analyzeVisualWithGemini(promptText, framesList);
+      if (visionResult.ok) {
+        return res.status(200).json({
+          choices: [{ message: { role: "assistant", content: visionResult.replyText } }],
+          served_by_model: visionResult.model
+        });
+      }
+      return res.status(503).json({ error: visionResult.error });
+    }
+
+    if (!GROQ_KEYS.length) {
+      return res.status(500).json({ error: "No Groq API keys configured on server" });
+    }
+
+    const chosenModel = sanitizeModel(model);
+    const candidateModels = [chosenModel, ...FALLBACK_MODELS.filter((m) => m !== chosenModel)];
+    const groqMessages = buildGroqMessages(messages);
     const keysToTry = getOrderedKeys();
 
     let lastErrorData = { error: "الضغط مرتفع حالياً، يرجى المحاولة بعد قليل." };
     let lastStatus = 502;
 
     for (const modelName of candidateModels) {
-      const isVisionModel = modelName === VISION_MODEL;
-      const groqMessages = buildGroqMessages(
-        messages,
-        hasVisualInput,
-        imageBase64,
-        videoFrames,
-        hasVisualInput && isVisionModel
-      );
-
       for (let i = 0; i < keysToTry.length; i++) {
         const apiKey = keysToTry[i];
 
@@ -191,16 +228,14 @@ export default async function handler(req, res) {
                 : data;
 
             const errMsg = String(data?.error?.message || data?.error || "").toLowerCase();
-            const isModelOrFormatError =
-              response.status === 400 ||
+            const isModelError =
               response.status === 404 ||
               errMsg.includes("does not exist") ||
               errMsg.includes("do not have access") ||
               errMsg.includes("decommissioned") ||
-              errMsg.includes("must be a string") ||
               errMsg.includes("model");
 
-            if (isModelOrFormatError) {
+            if (isModelError) {
               break;
             }
 
