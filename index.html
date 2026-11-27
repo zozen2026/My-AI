@@ -11,6 +11,7 @@
     .brand{font-size:20px;font-weight:800;background:linear-gradient(135deg,#2563eb,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
     .controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     select,button,input{font-family:inherit;font-size:13px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;padding:6px 10px;cursor:pointer}
+    .mic-btn{padding:8px 10px;display:inline-flex;align-items:center;justify-content:center}
     .mic-btn.active{background:linear-gradient(135deg,#ef4444,#ec4899);color:#fff;border-color:#ef4444}
     .user-box{display:inline-flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:2px 8px;border-radius:12px}
     .avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#a855f7);color:#fff;display:grid;place-items:center;font-size:14px}
@@ -23,6 +24,7 @@
     .icon-btn{padding:4px 7px;border-radius:8px;background:rgba(255,255,255,.9);color:#0f172a;display:inline-flex;align-items:center}
     .msg.user .icon-btn{background:rgba(255,255,255,.22);color:#fff;border-color:rgba(255,255,255,.35)}
     .ico{width:14px;height:14px;display:block}
+    .mic-ico{width:17px;height:17px;display:block}
     footer{border-top:1px solid #e2e8f0;padding:10px 14px}
     form{max-width:800px;margin:0 auto;display:flex;gap:8px;align-items:center}
     textarea{flex:1;resize:none;border:1px solid #cbd5e1;border-radius:12px;padding:9px 12px;font-family:inherit;font-size:14px;min-height:42px;max-height:110px}
@@ -58,8 +60,8 @@
 
   <footer>
     <form id="chatForm">
-      <button type="button" id="micBtn" class="mic-btn" title="تحدث بالمايك ليتم الرد صوتياً">🎤</button>
-      <textarea id="promptInput" rows="1" placeholder="اكتب رسالتك أو اضغط المايك للتحدث..."></textarea>
+      <button type="button" id="micBtn" class="mic-btn" title="أرسل عبر المايك ليقرأ الرد صوتياً" aria-label="أرسل عبر المايك"></button>
+      <textarea id="promptInput" rows="1" placeholder="اكتب رسالتك أو أرسل عبر المايك..."></textarea>
       <button type="submit" class="send" id="sendBtn">إرسال</button>
     </form>
   </footer>
@@ -91,6 +93,8 @@
   <script>
     const SB_URL="https://lzvtnfdgynwczrkwlwhf.supabase.co";
     const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6dnRuZmRneW53Y3pya3dsd2hmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNDIxMTEsImV4cCI6MjEwNDcxODExMX0.w2hNlJ4SszyMBkUVjr1qiWNTTPxHMHkM9YOFtVP-pVI";
+    const MIC_ICO=`<svg class="mic-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>`;
+    const MIC_REC_ICO=`<svg class="mic-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><circle cx="19" cy="5" r="2.5" fill="currentColor" stroke="none"/></svg>`;
     const COPY_ICO=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
     const CHK_ICO=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>`;
     const EDIT_ICO=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`;
@@ -104,8 +108,16 @@
       loggedOut=document.getElementById("loggedOut"),loggedIn=document.getElementById("loggedIn"),userInfo=document.getElementById("userInfo"),
       logoutBtn=document.getElementById("logoutBtn"),authStatus=document.getElementById("authStatus");
 
+    micBtn.innerHTML=MIC_ICO;
+
     let voices=[],mode="login",session=JSON.parse(localStorage.getItem("my_ai_sb")||"null"),history=[],busy=false,activeUserName="Guest";
-    let voiceReplyEnabled=false,isListening=false,recognition=null;
+    let isListening=false,recognition=null;
+
+    function setMicUI(active){
+      isListening=active;
+      micBtn.classList.toggle("active",active);
+      micBtn.innerHTML=active?MIC_REC_ICO:MIC_ICO;
+    }
 
     function findBestMicrosoftVoice(list){
       return list.find(v=>/microsoft/i.test(v.name)&&/ar/i.test(v.lang))
@@ -133,14 +145,13 @@
       return text
         .replace(/_{2,}/g," ")
         .replace(/-{2,}/g," ")
-        .replace(/[*#~`^=+|<>\\/{}\[\]]/g," ")
-        .replace(/[•▪▸►◆◇★☆]+/g," ")
+        .replace(/[^\u0600-\u06FFa-zA-Z0-9\s$.,؟!،:؛\n]/g," ")
         .replace(/\s+/g," ")
         .trim();
     }
 
-    function speakMicrosoft(text){
-      if(!voiceReplyEnabled||!("speechSynthesis"in window)||!text)return;
+    function speakMicrosoft(text,fromMic){
+      if(!fromMic||!("speechSynthesis"in window)||!text)return;
       const spokenText=cleanForSpeech(text);
       if(!spokenText)return;
       window.speechSynthesis.cancel();
@@ -158,35 +169,24 @@
       rec.lang="ar-SA";
       rec.interimResults=false;
       rec.maxAlternatives=1;
-      rec.onstart=()=>{isListening=true;micBtn.classList.add("active");micBtn.textContent="🔴";};
+      rec.onstart=()=>setMicUI(true);
       rec.onresult=(ev)=>{
         const spoken=(ev.results?.[0]?.[0]?.transcript||"").trim();
         if(spoken){
-          voiceReplyEnabled=true;
-          promptInput.value=spoken;
+          promptInput.value="";
           send(spoken,false,true);
         }
       };
-      rec.onerror=()=>{isListening=false;micBtn.classList.remove("active");micBtn.textContent="🎤";};
-      rec.onend=()=>{isListening=false;micBtn.classList.remove("active");micBtn.textContent="🎤";};
+      rec.onerror=()=>setMicUI(false);
+      rec.onend=()=>setMicUI(false);
       return rec;
     }
 
     micBtn.onclick=()=>{
       if(busy)return;
       if(!recognition)recognition=setupSpeechRecognition();
-      if(!recognition){
-        voiceReplyEnabled=!voiceReplyEnabled;
-        micBtn.classList.toggle("active",voiceReplyEnabled);
-        return;
-      }
-      if(isListening){
-        recognition.stop();
-        voiceReplyEnabled=false;
-        micBtn.classList.remove("active");
-        return;
-      }
-      voiceReplyEnabled=true;
+      if(!recognition)return;
+      if(isListening){recognition.stop();return;}
       if("speechSynthesis"in window)window.speechSynthesis.cancel();
       recognition.start();
     };
@@ -222,8 +222,9 @@
       }
     }
 
-    function addMsg(role,text){
+    function addMsg(role,text,fromMic=false){
       const box=document.createElement("div");box.className=`msg ${role}`;
+      box.dataset.fromMic=fromMic?"1":"0";
       const body=document.createElement("div");body.textContent=text;box.appendChild(body);
       const act=document.createElement("div");act.className="actions";
 
@@ -238,7 +239,7 @@
           const up=prompt("عدّل رسالتك:",body.textContent);
           if(up&&up.trim()&&up.trim()!==body.textContent){
             body.textContent=up.trim();
-            send(up.trim(),true,voiceReplyEnabled);
+            send(up.trim(),true,box.dataset.fromMic==="1");
           }
         };
         act.appendChild(eBtn);
@@ -247,11 +248,11 @@
       box.appendChild(act);chatEl.appendChild(box);chatEl.scrollTop=chatEl.scrollHeight;return body;
     }
 
-    async function send(text,isEdit=false,shouldSpeak=false){
+    async function send(text,isEdit=false,fromMic=false){
       if(busy||!text.trim())return;busy=true;sendBtn.disabled=true;
       if("speechSynthesis"in window)window.speechSynthesis.cancel();
 
-      if(!isEdit)addMsg("user",text);
+      if(!isEdit)addMsg("user",text,fromMic);
       if(isEdit&&history.length&&history[history.length-1].role==="user"){
         history[history.length-1].content=text;
       }else{
@@ -259,7 +260,7 @@
       }
       history=history.slice(-4);
 
-      const botBody=addMsg("bot","...");
+      const botBody=addMsg("bot","...",false);
       try{
         const r=await fetch("/api/chat",{
           method:"POST",
@@ -272,7 +273,7 @@
         if(r.ok&&typeof rep==="string"){
           history.push({role:"assistant",content:rep});
           history=history.slice(-4);
-          if(shouldSpeak&&voiceReplyEnabled)speakMicrosoft(rep);
+          speakMicrosoft(rep,fromMic);
         }
       }catch{botBody.textContent="خطأ في الاتصال.";}
       finally{busy=false;sendBtn.disabled=false;chatEl.scrollTop=chatEl.scrollHeight;}
@@ -305,21 +306,19 @@
     };
 
     logoutBtn.onclick=()=>{session=null;localStorage.removeItem("my_ai_sb");refreshUser();authStatus.textContent="تم الخروج.";};
-    stopBtn.onclick=()=>{voiceReplyEnabled=false;micBtn.classList.remove("active");if("speechSynthesis"in window)window.speechSynthesis.cancel();};
+    stopBtn.onclick=()=>{if("speechSynthesis"in window)window.speechSynthesis.cancel();};
 
     chatForm.onsubmit=(e)=>{
       e.preventDefault();
       const t=promptInput.value.trim();
       if(!t)return;
       promptInput.value="";
-      voiceReplyEnabled=false;
-      micBtn.classList.remove("active");
       send(t,false,false);
     };
 
     promptInput.onkeydown=(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();chatForm.requestSubmit();}};
     if("speechSynthesis"in window){loadVoices();window.speechSynthesis.onvoiceschanged=loadVoices;}
-    refreshUser();addMsg("bot","أهلاً بك في My AI.");
+    refreshUser();addMsg("bot","أهلاً بك في My AI.",false);
   </script>
 </body>
 </html>
