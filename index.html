@@ -192,7 +192,7 @@
       font-size: 0.82rem;
       font-weight: 700;
       cursor: pointer;
-      max-width: 155px;
+      max-width: 165px;
     }
 
     .logo {
@@ -313,13 +313,15 @@
       border-right: 3px solid #2563eb;
       width: fit-content;
     }
-    .message img {
+    .message img,
+    .message video {
       max-width: 100%;
       max-height: 350px;
       border-radius: 12px;
       margin-top: 10px;
       display: block;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      background: #0f172a;
     }
 
     .scroll-bottom-btn {
@@ -384,35 +386,43 @@
       white-space: pre;
     }
 
-    .image-preview-bar {
+    .media-preview-bar {
       display: none;
       padding: 8px 12px;
-      background: rgba(255, 255, 255, 0.92);
-      border-top: 1px solid #f1f5f9;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #fed7aa;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
       border-radius: 12px;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04);
     }
-    .image-preview-content {
+    .media-preview-content {
       display: flex;
       align-items: center;
       gap: 10px;
+      min-width: 0;
     }
-    .image-preview-bar img {
-      width: 46px;
-      height: 46px;
+    .media-preview-bar img,
+    .media-preview-bar video {
+      width: 54px;
+      height: 54px;
       object-fit: cover;
       border-radius: 8px;
       border: 1px solid #f97316;
+      flex-shrink: 0;
+      background: #0f172a;
     }
-    .image-preview-bar span {
-      font-size: 0.84rem;
+    .media-preview-bar span {
+      font-size: 0.83rem;
       color: #9a3412;
       font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .remove-img-btn {
+    .remove-media-btn {
       background: #ef4444;
       color: #ffffff;
       border: none;
@@ -424,6 +434,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
     }
 
     .bottom-dock {
@@ -443,6 +454,11 @@
       gap: 8px;
       align-items: center;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .chat-input-container.paste-highlight {
+      border-color: #f97316;
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.16);
     }
     .camera-btn {
       background-color: #ffffff;
@@ -613,11 +629,12 @@
     <span>⚡</span>
     <select id="modelSelect">
       <option value="auto" selected>My AI Auto</option>
-      <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout (Fast)</option>
-      <option value="qwen/qwen3-32b">Qwen 3 32B (Code/Multilingual)</option>
-      <option value="openai/gpt-oss-120b">GPT-OSS 120B (High Reasoning)</option>
-      <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Balanced)</option>
       <option value="llama-3.1-8b-instant">Llama 3.1 8B (Instant)</option>
+      <option value="openai/gpt-oss-20b">GPT-OSS 20B (Fast)</option>
+      <option value="qwen/qwen3-32b">Qwen 3 32B (Code/Multilingual)</option>
+      <option value="moonshotai/kimi-k2-instruct-0905">Kimi K2 Instruct</option>
+      <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Balanced)</option>
+      <option value="openai/gpt-oss-120b">GPT-OSS 120B (High Reasoning)</option>
     </select>
   </div>
 
@@ -653,28 +670,29 @@
     <button type="button" class="scroll-bottom-btn" id="scroll-bottom-btn" title="الانتقال للأسفل">↓</button>
 
     <div class="bottom-dock">
-      <div class="image-preview-bar" id="image-preview-bar">
-        <div class="image-preview-content">
-          <img id="preview-img-thumb" src="" alt="معاينة الصورة">
-          <span>تم إرفاق صورة، اكتب سؤالك...</span>
+      <div class="media-preview-bar" id="media-preview-bar">
+        <div class="media-preview-content">
+          <img id="preview-img-thumb" src="" alt="معاينة الصورة" style="display:none;">
+          <video id="preview-video-thumb" src="" controls muted playsinline style="display:none;"></video>
+          <span id="preview-media-label">تم إرفاق ملف، اكتب سؤالك...</span>
         </div>
-        <button class="remove-img-btn" onclick="clearSelectedImage()" title="إزالة الصورة">×</button>
+        <button type="button" class="remove-media-btn" onclick="clearSelectedMedia()" title="إزالة المرفق">×</button>
       </div>
 
-      <div class="ai-status-text" id="aiStatus">اضغط على الدائرة للتحدث...</div>
+      <div class="ai-status-text" id="aiStatus">اضغط على الدائرة للتحدث أو الصق صورة/فيديو...</div>
 
-      <div class="chat-input-container">
+      <div class="chat-input-container" id="chat-input-box">
         <div class="orb" id="aiOrb" onclick="startMyAIListening()" title="اضغط للتحدث مع My AI"></div>
 
-        <input type="file" id="image-input" accept="image/*" capture="environment" style="display: none;" onchange="handleImageUpload(event)">
-        <button class="camera-btn" onclick="document.getElementById('image-input').click()" title="إرفاق أو التقاط صورة">
+        <input type="file" id="media-input" accept="image/*,video/*" style="display: none;" onchange="handleMediaUpload(event)">
+        <button type="button" class="camera-btn" onclick="document.getElementById('media-input').click()" title="إرفاق صورة أو فيديو">
           <svg viewBox="0 0 24 24">
             <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
           </svg>
         </button>
 
-        <textarea id="user-input" placeholder="اكتب رسالتك بأي لغة..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTextMessage(); }"></textarea>
-        <button class="send-btn" id="send-btn" onclick="sendTextMessage()" title="إرسال">
+        <textarea id="user-input" placeholder="اكتب رسالتك أو الصق صورة أو فيديو هنا..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTextMessage(); }"></textarea>
+        <button type="button" class="send-btn" id="send-btn" onclick="sendTextMessage()" title="إرسال">
           <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
         </button>
       </div>
@@ -724,7 +742,7 @@
     const MAX_DOM_MESSAGES = 80;
     const SILENCE_TIMEOUT_MS = 2000;
 
-    const WELCOME_MESSAGE = "أهلاً بك في My AI! اسألني باختصار وسأجيبك بوضوح وسرعة.";
+    const WELCOME_MESSAGE = "أهلاً بك في My AI! اسألني باختصار أو الصق صورة أو فيديو وسأجيبك بوضوح وسرعة.";
     const SYSTEM_PROMPT = {
       role: "system",
       content: "You are My AI, an intelligent, concise, and multilingual AI assistant developed by NC Studio. Always detect the user's language and reply naturally in the exact same language with short, clear, summarized answers without filler, without markdown symbols like ** or ## or ---, and always finish your sentences completely. In programming tasks, wrap code inside triple backticks (```). If asked who developed you, say NC Studio."
@@ -736,7 +754,7 @@
     let allLoadedRows = [];
     let renderedStartIndex = 0;
     let isProcessing = false;
-    let selectedImageBase64 = null;
+    let selectedMedia = null; // { type: 'image' | 'video', previewUrl: string, frames: string[], name?: string }
     let chatRealtimeChannel = null;
 
     const chatMessages = document.getElementById('chat-messages');
@@ -746,6 +764,7 @@
     const aiStatus = document.getElementById('aiStatus');
     const scrollBottomBtn = document.getElementById('scroll-bottom-btn');
     const loadOlderBar = document.getElementById('load-older-bar');
+    const chatInputBox = document.getElementById('chat-input-box');
 
     function setVoiceBackdropActive(active) {
       document.body.classList.toggle('voice-active', Boolean(active));
@@ -814,7 +833,7 @@
       });
     }
 
-    function createMessageElement(role, text, imageUrl = null) {
+    function createMessageElement(role, text, mediaUrl = null, mediaType = null) {
       const rawText = role === 'assistant' ? formatCleanReplyText(text) : String(text || '');
       const msgDiv = document.createElement('div');
       msgDiv.className = `message ${role}`;
@@ -830,11 +849,21 @@
         msgDiv.appendChild(textNode);
       }
 
-      if (imageUrl && /^data:image\/|^https?:\/\//i.test(imageUrl)) {
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.alt = "Attached image";
-        msgDiv.appendChild(img);
+      if (mediaUrl && (/^data:image\/|^data:video\/|^blob:|^https?:\/\//i.test(mediaUrl))) {
+        const isVid = mediaType === 'video' || /^data:video\//i.test(mediaUrl) || /\.(mp4|webm|mov|ogg)(\?|$)/i.test(mediaUrl);
+        if (isVid) {
+          const vid = document.createElement('video');
+          vid.src = mediaUrl;
+          vid.controls = true;
+          vid.playsInline = true;
+          vid.preload = "metadata";
+          msgDiv.appendChild(vid);
+        } else {
+          const img = document.createElement('img');
+          img.src = mediaUrl;
+          img.alt = "Attached image";
+          msgDiv.appendChild(img);
+        }
       }
 
       return msgDiv;
@@ -891,7 +920,7 @@
       if (!hasAccount() || !currentSessionId) return;
       const safeContent = String(content || '').trim().slice(0, MAX_STORED_TEXT_CHARS);
       if (!safeContent && !imageUrl) return;
-      const safeImageUrl = (imageUrl && imageUrl.length > 250000) ? null : imageUrl;
+      const safeImageUrl = (imageUrl && (imageUrl.startsWith('blob:') || imageUrl.length > 250000)) ? null : imageUrl;
 
       const { error } = await supabaseClient
         .from(CHATS_TABLE)
@@ -1168,43 +1197,243 @@
       await updateUIAuthState(parsedUser);
     });
 
-    function handleImageUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+    function flashPasteHighlight() {
+      chatInputBox.classList.add('paste-highlight');
+      setTimeout(() => chatInputBox.classList.remove('paste-highlight'), 500);
+    }
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const img = new Image();
-        img.onload = function() {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800;
-          const scaleSize = MAX_WIDTH / img.width;
-          canvas.width = img.width > MAX_WIDTH ? MAX_WIDTH : img.width;
-          canvas.height = img.width > MAX_WIDTH ? img.height * scaleSize : img.height;
+    function showMediaPreview(mediaObj) {
+      const bar = document.getElementById('media-preview-bar');
+      const imgThumb = document.getElementById('preview-img-thumb');
+      const vidThumb = document.getElementById('preview-video-thumb');
+      const label = document.getElementById('preview-media-label');
 
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
+      if (!mediaObj) {
+        bar.style.display = 'none';
+        imgThumb.style.display = 'none';
+        vidThumb.style.display = 'none';
+        imgThumb.src = '';
+        vidThumb.src = '';
+        return;
+      }
 
-          document.getElementById('preview-img-thumb').src = selectedImageBase64;
-          document.getElementById('image-preview-bar').style.display = 'flex';
+      bar.style.display = 'flex';
+      if (mediaObj.type === 'video') {
+        imgThumb.style.display = 'none';
+        vidThumb.style.display = 'block';
+        vidThumb.src = mediaObj.previewUrl;
+        label.textContent = `تم لصق فيديو (${mediaObj.frames.length} لقطات)، اكتب سؤالك...`;
+      } else {
+        vidThumb.style.display = 'none';
+        imgThumb.style.display = 'block';
+        imgThumb.src = mediaObj.previewUrl;
+        label.textContent = 'تم لصق صورة، اكتب سؤالك...';
+      }
+    }
+
+    function compressImageFile(fileOrDataUrl) {
+      return new Promise((resolve, reject) => {
+        const readSource = (src) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const scale = img.width > MAX_WIDTH ? MAX_WIDTH / img.width : 1;
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.72));
+          };
+          img.onerror = reject;
+          img.src = src;
         };
-        img.src = e.target.result;
+
+        if (typeof fileOrDataUrl === 'string') {
+          readSource(fileOrDataUrl);
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => readSource(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(fileOrDataUrl);
+      });
+    }
+
+    function extractVideoFrames(videoSource) {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "auto";
+        video.crossOrigin = "anonymous";
+
+        const frames = [];
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        video.onloadedmetadata = () => {
+          const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 2;
+          const times = [
+            Math.min(0.15, duration * 0.1),
+            duration * 0.5,
+            Math.max(0.2, duration * 0.85)
+          ].filter((t, idx, arr) => arr.findIndex(v => Math.abs(v - t) < 0.08) === idx);
+
+          const MAX_W = 640;
+          const scale = video.videoWidth > MAX_W ? MAX_W / video.videoWidth : 1;
+          canvas.width = Math.max(1, Math.round((video.videoWidth || 320) * scale));
+          canvas.height = Math.max(1, Math.round((video.videoHeight || 240) * scale));
+
+          let step = 0;
+
+          const seekNext = () => {
+            if (step >= times.length) {
+              resolve(frames);
+              return;
+            }
+            video.currentTime = Math.min(Math.max(0, times[step]), Math.max(0, duration - 0.05));
+          };
+
+          video.onseeked = () => {
+            try {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              frames.push(canvas.toDataURL('image/jpeg', 0.65));
+            } catch (e) {}
+            step++;
+            seekNext();
+          };
+
+          seekNext();
+        };
+
+        video.onerror = () => reject(new Error("تعذر قراءة الفيديو"));
+        video.src = videoSource;
+      });
+    }
+
+    async function attachImage(fileOrDataUrl) {
+      aiStatus.innerText = "جاري تجهيز الصورة...";
+      const compressed = await compressImageFile(fileOrDataUrl);
+      selectedMedia = {
+        type: 'image',
+        previewUrl: compressed,
+        frames: [compressed]
       };
-      reader.readAsDataURL(file);
+      showMediaPreview(selectedMedia);
+      flashPasteHighlight();
+      aiStatus.innerText = "الصورة جاهزة للإرسال.";
     }
 
-    function clearSelectedImage() {
-      selectedImageBase64 = null;
-      document.getElementById('image-input').value = '';
-      document.getElementById('image-preview-bar').style.display = 'none';
+    async function attachVideoFile(file) {
+      aiStatus.innerText = "جاري قراءة الفيديو واستخراج مشاهده لـ My AI...";
+      const blobUrl = URL.createObjectURL(file);
+      const frames = await extractVideoFrames(blobUrl);
+      selectedMedia = {
+        type: 'video',
+        previewUrl: blobUrl,
+        frames: frames,
+        name: file.name || 'video'
+      };
+      showMediaPreview(selectedMedia);
+      flashPasteHighlight();
+      aiStatus.innerText = "الفيديو جاهز؛ اكتب سؤالك واضغط إرسال.";
     }
 
-    function appendMessage(role, text, imageUrl = null, persist = true) {
+    async function attachVideoUrl(urlStr) {
+      aiStatus.innerText = "جاري فحص رابط الفيديو...";
+      let frames = [];
+      try {
+        frames = await extractVideoFrames(urlStr);
+      } catch (e) {
+        frames = [];
+      }
+      selectedMedia = {
+        type: 'video',
+        previewUrl: urlStr,
+        frames: frames,
+        name: urlStr
+      };
+      showMediaPreview(selectedMedia);
+      flashPasteHighlight();
+      aiStatus.innerText = frames.length
+        ? "تم التقاط لقطات من الفيديو؛ اكتب سؤالك."
+        : "تم لصق رابط الفيديو؛ اكتب سؤالك.";
+    }
+
+    async function handleMediaUpload(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        if (file.type.startsWith('video/')) {
+          await attachVideoFile(file);
+        } else if (file.type.startsWith('image/')) {
+          await attachImage(file);
+        }
+      } catch (err) {
+        aiStatus.innerText = "تعذر تحميل الملف المرفق.";
+      }
+    }
+
+    function clearSelectedMedia() {
+      if (selectedMedia?.type === 'video' && selectedMedia.previewUrl?.startsWith('blob:')) {
+        try { URL.revokeObjectURL(selectedMedia.previewUrl); } catch (e) {}
+      }
+      selectedMedia = null;
+      document.getElementById('media-input').value = '';
+      showMediaPreview(null);
+      aiStatus.innerText = "اضغط على الدائرة للتحدث أو الصق صورة/فيديو...";
+    }
+
+    function isLikelyVideoUrl(text) {
+      const trimmed = String(text || '').trim();
+      return /^https?:\/\/.+/i.test(trimmed) &&
+        (/\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(trimmed) || /(youtube\.com\/watch|youtu\.be\/|vimeo\.com\/)/i.test(trimmed));
+    }
+
+    async function handlePasteEvent(e) {
+      const clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+
+      const items = Array.from(clipboardData.items || []);
+      const mediaItem = items.find(it => it.kind === 'file' && (it.type.startsWith('image/') || it.type.startsWith('video/')));
+
+      if (mediaItem) {
+        e.preventDefault();
+        const file = mediaItem.getAsFile();
+        if (!file) return;
+        try {
+          if (file.type.startsWith('video/')) {
+            await attachVideoFile(file);
+          } else {
+            await attachImage(file);
+          }
+        } catch (err) {
+          aiStatus.innerText = "تعذر لصق الملف.";
+        }
+        return;
+      }
+
+      const pastedText = clipboardData.getData('text/plain')?.trim() || '';
+      if (isLikelyVideoUrl(pastedText) && !userInput.value.trim()) {
+        e.preventDefault();
+        await attachVideoUrl(pastedText);
+      }
+    }
+
+    userInput.addEventListener('paste', handlePasteEvent);
+    document.addEventListener('paste', (e) => {
+      if (document.activeElement !== userInput) {
+        handlePasteEvent(e);
+      }
+    });
+
+    function appendMessage(role, text, mediaUrl = null, persist = true, mediaType = null) {
       const rawText = String(text || '').trim();
-      if (!rawText && !imageUrl) return;
+      if (!rawText && !mediaUrl) return;
 
-      const msgDiv = createMessageElement(role, rawText, imageUrl);
+      const msgDiv = createMessageElement(role, rawText, mediaUrl, mediaType);
       chatMessages.appendChild(msgDiv);
 
       while (chatMessages.children.length > MAX_DOM_MESSAGES) {
@@ -1220,11 +1449,11 @@
           username: currentUser?.username || null,
           role,
           content: rawText,
-          image_url: imageUrl,
+          image_url: mediaUrl,
           created_at: new Date().toISOString()
         });
         if (hasAccount()) {
-          saveMessageToSupabase(role, rawText, imageUrl);
+          saveMessageToSupabase(role, rawText, mediaUrl);
         }
       }
     }
@@ -1244,23 +1473,31 @@
     async function sendTextMessage() {
       if (isProcessing) return;
       const text = userInput.value.trim();
-      const attachedImage = selectedImageBase64;
+      const attached = selectedMedia ? { ...selectedMedia } : null;
 
-      if (!text && !attachedImage) return;
+      if (!text && !attached) return;
 
       userInput.value = '';
       userInput.style.height = '40px';
-      clearSelectedImage();
+      clearSelectedMedia();
 
-      const displayedUserText = text || "لخّص واشرح هذه الصورة باختصار.";
-      appendMessage('user', displayedUserText, attachedImage, true);
+      const isVideo = attached?.type === 'video';
+      const displayedUserText = text || (isVideo ? "اشرح ولخّص هذا الفيديو باختصار." : "لخّص واشرح هذه الصورة باختصار.");
+      appendMessage('user', displayedUserText, attached?.previewUrl || null, true, attached?.type || null);
 
-      const userPrompt = text || "لخّص واشرح هذه الصورة بوضوح واختصار.";
-      pushContextMessage("user", userPrompt);
-      await processAIResponse(false, Boolean(attachedImage), attachedImage);
+      const framesToSend = attached?.frames || [];
+      const hasVisualFrames = framesToSend.length > 0;
+      const primaryFrame = framesToSend[0] || null;
+
+      const contextPrompt = isVideo
+        ? `${text || "اشرح ولخّص هذا الفيديو بوضوح واختصار."} ${attached.name && attached.name.startsWith('http') ? `(رابط الفيديو: ${attached.name})` : `(تم تحليل ${framesToSend.length} لقطات من الفيديو)`}`
+        : (text || "لخّص واشرح هذه الصورة بوضوح واختصار.");
+
+      pushContextMessage("user", contextPrompt);
+      await processAIResponse(false, hasVisualFrames, primaryFrame, framesToSend);
     }
 
-    async function processAIResponse(shouldSpeak = false, hasImage = false, imageBase64 = null) {
+    async function processAIResponse(shouldSpeak = false, hasImage = false, imageBase64 = null, videoFrames = []) {
       isProcessing = true;
       sendBtn.disabled = true;
       orb.className = "orb thinking";
@@ -1291,7 +1528,8 @@
                 messages: recentMessages,
                 model: chosenModel,
                 hasImage: hasImage,
-                imageBase64: imageBase64
+                imageBase64: imageBase64,
+                videoFrames: videoFrames
               })
             });
 
@@ -1335,7 +1573,7 @@
             } else {
               orb.className = "orb";
               setVoiceBackdropActive(false);
-              aiStatus.innerText = "اضغط على الدائرة للتحدث...";
+              aiStatus.innerText = "اضغط على الدائرة للتحدث أو الصق صورة/فيديو...";
             }
           }
         }

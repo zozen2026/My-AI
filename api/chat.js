@@ -73,7 +73,7 @@ function sanitizeModel(model) {
   return clean;
 }
 
-function buildGroqMessages(messages, hasImage, imageBase64) {
+function buildGroqMessages(messages, hasImage, imageBase64, videoFrames = []) {
   const rawList = Array.isArray(messages) ? messages : [];
   const filtered = rawList.filter((m) => m && m.role !== "system");
   const safeMessages = filtered.slice(-2).map((m) => ({
@@ -81,7 +81,11 @@ function buildGroqMessages(messages, hasImage, imageBase64) {
     content: typeof m.content === "string" ? m.content.slice(0, 1200) : m.content
   }));
 
-  if (hasImage && imageBase64) {
+  const framesList = Array.isArray(videoFrames) && videoFrames.length
+    ? videoFrames.slice(0, 4)
+    : (imageBase64 ? [imageBase64] : []);
+
+  if (hasImage && framesList.length > 0) {
     let lastUserIndex = -1;
     for (let i = safeMessages.length - 1; i >= 0; i--) {
       if (safeMessages[i]?.role === "user") {
@@ -93,14 +97,14 @@ function buildGroqMessages(messages, hasImage, imageBase64) {
     const promptText =
       lastUserIndex >= 0 && typeof safeMessages[lastUserIndex].content === "string"
         ? safeMessages[lastUserIndex].content
-        : "لخّص واشرح هذه الصورة بوضوح واختصار.";
+        : "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار.";
 
     const visionContent = [
       { type: "text", text: promptText },
-      {
+      ...framesList.map((frameUrl) => ({
         type: "image_url",
-        image_url: { url: imageBase64 }
-      }
+        image_url: { url: frameUrl }
+      }))
     ];
 
     if (lastUserIndex >= 0) {
@@ -129,16 +133,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, model, hasImage, imageBase64 } = req.body || {};
-    const useVisionModel = Boolean(hasImage && imageBase64);
+    const { messages, model, hasImage, imageBase64, videoFrames } = req.body || {};
+    const hasVisualInput = Boolean(
+      hasImage && (imageBase64 || (Array.isArray(videoFrames) && videoFrames.length > 0))
+    );
 
-    const primaryModel = useVisionModel ? VISION_MODEL : sanitizeModel(model);
+    const primaryModel = hasVisualInput ? VISION_MODEL : sanitizeModel(model);
 
-    const candidateModels = useVisionModel
+    const candidateModels = hasVisualInput
       ? [primaryModel, ...FALLBACK_MODELS]
       : [primaryModel, ...FALLBACK_MODELS.filter((m) => m !== primaryModel)];
 
-    const groqMessages = buildGroqMessages(messages, useVisionModel, imageBase64);
+    const groqMessages = buildGroqMessages(messages, hasVisualInput, imageBase64, videoFrames);
     const keysToTry = getOrderedKeys();
 
     let lastErrorData = { error: "الضغط مرتفع حالياً، يرجى المحاولة بعد قليل." };
