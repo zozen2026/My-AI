@@ -80,31 +80,37 @@ function parseDataUrl(dataUrl) {
   return { mimeType: match[1], base64Data: match[2] };
 }
 
-// تحويل سجل الرسائل إلى صيغة Interactions API مع الإبقاء على آخر رسالتين فقط
-function buildInteractionInput(messages, framesList) {
+// بناء step_list بدلاً من turn_list مع الإبقاء على آخر رسالتين فقط
+function buildStepList(messages, framesList) {
   const rawList = Array.isArray(messages) ? messages : [];
   const filtered = rawList.filter(
     (m) => m && (m.role === "user" || m.role === "assistant") && String(m.content || "").trim()
   );
 
   const recentTwo = filtered.slice(-2);
+  const stepList = [];
 
   if (recentTwo.length === 0) {
-    const defaultContent = [{ type: "text", text: "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار." }];
+    stepList.push({
+      type: "text",
+      role: "user",
+      text: "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار."
+    });
     for (const frame of framesList) {
       const parsed = parseDataUrl(frame);
       if (parsed) {
-        defaultContent.push({
+        stepList.push({
           type: "image",
+          role: "user",
           data: parsed.base64Data,
           mime_type: parsed.mimeType
         });
       }
     }
-    return [{ role: "user", content: defaultContent }];
+    return stepList;
   }
 
-  return recentTwo.map((m, idx) => {
+  recentTwo.forEach((m, idx) => {
     const isLastMessage = idx === recentTwo.length - 1;
     const role = m.role === "assistant" ? "model" : "user";
     const textContent =
@@ -112,23 +118,28 @@ function buildInteractionInput(messages, framesList) {
         ? m.content.trim().slice(0, 1000)
         : String(m.content || "").trim().slice(0, 1000);
 
-    const content = [{ type: "text", text: textContent }];
+    stepList.push({
+      type: "text",
+      role,
+      text: textContent
+    });
 
     if (isLastMessage && role === "user" && framesList.length > 0) {
       for (const frame of framesList) {
         const parsed = parseDataUrl(frame);
         if (parsed) {
-          content.push({
+          stepList.push({
             type: "image",
+            role: "user",
             data: parsed.base64Data,
             mime_type: parsed.mimeType
           });
         }
       }
     }
-
-    return { role, content };
   });
+
+  return stepList;
 }
 
 function extractInteractionText(data) {
@@ -171,7 +182,7 @@ export default async function handler(req, res) {
 
     const hasVisualInput = Boolean(hasImage && framesList.length > 0);
     const candidateModels = resolveModelList(model);
-    const input = buildInteractionInput(messages, hasVisualInput ? framesList : []);
+    const stepList = buildStepList(messages, hasVisualInput ? framesList : []);
 
     let lastErrorData = { error: "الضغط مرتفع حالياً على Gemini، يرجى المحاولة بعد قليل." };
     let lastStatus = 502;
@@ -193,7 +204,7 @@ export default async function handler(req, res) {
             body: JSON.stringify({
               model: `models/${gemModel}`,
               system_instruction: activeSystemPrompt,
-              input,
+              step_list: stepList,
               generation_config: {
                 temperature: 0.4,
                 max_output_tokens: 2048
