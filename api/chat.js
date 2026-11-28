@@ -5,8 +5,7 @@ const ALLOWED_MODELS = [
   "gemini-3.8-flash",
   "gemini-4-argon",
   "gemini-4-hydrogen",
-  "gemini-4-carbon",
-  "gemini-4-neon"
+  "gemini-4-carbon"
 ];
 
 const DEFAULT_AUTO_MODEL = "gemini-3.8-flash";
@@ -166,7 +165,7 @@ export default async function handler(req, res) {
     const ar = isArabicText(lastUserText);
 
     let lastStatus = 503;
-    let lastError = ar
+    const fallbackError = ar
       ? "النماذج مضغوطة مؤقتاً الآن، جرّب الإرسال بعد لحظات."
       : "Models are temporarily busy right now. Please try again in a moment.";
 
@@ -212,10 +211,6 @@ export default async function handler(req, res) {
         }
 
         lastStatus = response.status || 503;
-        const apiMsg = String(data?.error?.message || "");
-        if (apiMsg && !apiMsg.toLowerCase().includes("high demand")) {
-          lastError = apiMsg;
-        }
       } catch {
         lastStatus = 504;
       } finally {
@@ -223,7 +218,7 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(lastStatus).json({ error: lastError });
+    return res.status(lastStatus).json({ error: fallbackError });
   } catch (err) {
     console.error("My AI Gemini /api/chat error:", err);
     return res.status(500).json({ error: "Internal server error" });
