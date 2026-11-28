@@ -145,7 +145,7 @@ async function analyzeVisualWithGemini(promptText, framesList, systemPrompt) {
 
   for (const gemModel of modelsToTry) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${gemModel}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
@@ -160,7 +160,7 @@ async function analyzeVisualWithGemini(promptText, framesList, systemPrompt) {
           contents: [{ role: "user", parts }],
           generationConfig: {
             temperature: 0.35,
-            maxOutputTokens: 420
+            maxOutputTokens: 1500
           }
         })
       });
@@ -264,7 +264,7 @@ export default async function handler(req, res) {
 
         for (let retry = 0; retry <= MAX_RETRIES_PER_KEY; retry++) {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 9000);
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
 
           try {
             const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -277,7 +277,7 @@ export default async function handler(req, res) {
               body: JSON.stringify({
                 model: modelName,
                 messages: groqMessages,
-                max_tokens: 420,
+                max_tokens: 2048,
                 temperature: 0.45
               })
             });
