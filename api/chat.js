@@ -2,11 +2,12 @@ const GEMINI_API_KEY =
   typeof process.env.GEMINI_API_KEY === "string" ? process.env.GEMINI_API_KEY.trim() : "";
 
 const ALLOWED_MODELS = [
-  "gemini-3.8-flash",
-  "gemini-3.1-pro-preview"
+  "gemini-4-argon",
+  "gemini-4-hydrogen",
+  "gemini-3.8-flash"
 ];
 
-const DEFAULT_AUTO_MODEL = "gemini-3.8-flash";
+const DEFAULT_AUTO_MODEL = "gemini-4-argon";
 
 const SHORT_CLEAR_SYSTEM_PROMPT =
   "أنت مساعد ذكي باسم My AI مطور من قبل NC Studio. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
