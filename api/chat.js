@@ -4,6 +4,8 @@ const GEMINI_API_KEY =
 const ALLOWED_MODELS = [
   "gemini-4-argon",
   "gemini-4-hydrogen",
+  "gemini-4-carbon",
+  "gemini-4-neon",
   "gemini-3.8-flash"
 ];
 
@@ -153,12 +155,12 @@ export default async function handler(req, res) {
     const candidateModels = resolveModelList(model);
     const input = buildInteractionInput(messages, hasVisualInput ? framesList : []);
 
-    let lastErrorData = { error: "تعذر الحصول على رد من Gemini، حاول مرة أخرى." };
-    let lastStatus = 502;
+    let lastErrorData = { error: "النماذج مضغوطة مؤقتاً الآن، جرّب الإرسال بعد ثوانٍ." };
+    let lastStatus = 503;
 
     for (const gemModel of candidateModels) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 9000);
+      const timeoutId = setTimeout(() => controller.abort(), 5500);
 
       try {
         const url = "https://generativelanguage.googleapis.com/v1beta/interactions";
@@ -198,14 +200,14 @@ export default async function handler(req, res) {
           });
         }
 
-        lastStatus = response.status;
+        lastStatus = response.status || 503;
         const apiMsg = data?.error?.message || "";
         lastErrorData = {
-          error: apiMsg || "تعذر الحصول على رد من Gemini."
+          error: apiMsg || `النموذج ${gemModel} مشغول مؤقتاً، جاري المحاولة...`
         };
       } catch (fetchErr) {
         lastStatus = 504;
-        lastErrorData = { error: "انتهت مهلة الاتصال بخادم Gemini، يرجى المحاولة مرة أخرى." };
+        lastErrorData = { error: "تأخر الاستجابة من الخادم، جرّب مرة أخرى." };
       } finally {
         clearTimeout(timeoutId);
       }
