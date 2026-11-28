@@ -2,14 +2,14 @@ const GEMINI_API_KEY =
   typeof process.env.GEMINI_API_KEY === "string" ? process.env.GEMINI_API_KEY.trim() : "";
 
 const ALLOWED_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-4-argon",
   "gemini-4-hydrogen",
   "gemini-4-carbon",
-  "gemini-4-neon",
-  "gemini-4-argon",
-  "gemini-3.8-flash"
+  "gemini-4-neon"
 ];
 
-const DEFAULT_AUTO_MODEL = "gemini-4-hydrogen";
+const DEFAULT_AUTO_MODEL = "gemini-3.8-flash";
 
 const SHORT_CLEAR_SYSTEM_PROMPT =
   "أنت مساعد ذكي باسم My AI مطور من قبل NC Studio. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
@@ -133,55 +133,6 @@ function isArabicText(text) {
   return /[\u0600-\u06FF]/.test(String(text || ""));
 }
 
-async function querySingleModel(gemModel, activeSystemPrompt, input, parentSignal) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-  const onAbort = () => controller.abort();
-  if (parentSignal) {
-    parentSignal.addEventListener("abort", onAbort, { once: true });
-  }
-
-  try {
-    const url = "https://generativelanguage.googleapis.com/v1beta/interactions";
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: `models/${gemModel}`,
-        system_instruction: activeSystemPrompt,
-        input,
-        generation_config: {
-          temperature: 0.4,
-          max_output_tokens: 2048
-        }
-      })
-    });
-
-    const data = await response.json().catch(() => ({}));
-    const rawReplyText = extractInteractionText(data);
-
-    if (response.ok && rawReplyText) {
-      return {
-        model: gemModel,
-        content: normalizeLongAnswerSeparators(rawReplyText)
-      };
-    }
-
-    const apiMsg = data?.error?.message || `Model ${gemModel} unavailable`;
-    throw new Error(apiMsg);
-  } finally {
-    clearTimeout(timeoutId);
-    if (parentSignal) {
-      parentSignal.removeEventListener("abort", onAbort);
-    }
-  }
-}
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -214,34 +165,65 @@ export default async function handler(req, res) {
         .find((m) => m?.role === "user")?.content || "";
     const ar = isArabicText(lastUserText);
 
-    const raceController = new AbortController();
-    try {
-      const winner = await Promise.any(
-        candidateModels.map((gemModel) =>
-          querySingleModel(gemModel, activeSystemPrompt, input, raceController.signal)
-        )
-      );
-      raceController.abort();
+    let lastStatus = 503;
+    let lastError = ar
+      ? "النماذج مضغوطة مؤقتاً الآن، جرّب الإرسال بعد لحظات."
+      : "Models are temporarily busy right now. Please try again in a moment.";
 
-      return res.status(200).json({
-        choices: [
-          {
-            message: {
-              role: "assistant",
-              content: winner.content
+    for (const gemModel of candidateModels) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+      try {
+        const url = "https://generativelanguage.googleapis.com/v1beta/interactions";
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: `models/${gemModel}`,
+            system_instruction: activeSystemPrompt,
+            input,
+            generation_config: {
+              temperature: 0.4,
+              max_output_tokens: 2048
             }
-          }
-        ],
-        served_by_model: winner.model
-      });
-    } catch {
-      raceController.abort();
-      return res.status(503).json({
-        error: ar
-          ? "النماذج مضغوطة مؤقتاً الآن، جرّب الإرسال بعد لحظات."
-          : "Models are temporarily busy right now. Please try again in a moment."
-      });
+          })
+        });
+
+        const data = await response.json().catch(() => ({}));
+        const rawReplyText = extractInteractionText(data);
+
+        if (response.ok && rawReplyText) {
+          return res.status(200).json({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: normalizeLongAnswerSeparators(rawReplyText)
+                }
+              }
+            ],
+            served_by_model: gemModel
+          });
+        }
+
+        lastStatus = response.status || 503;
+        const apiMsg = String(data?.error?.message || "");
+        if (apiMsg && !apiMsg.toLowerCase().includes("high demand")) {
+          lastError = apiMsg;
+        }
+      } catch {
+        lastStatus = 504;
+      } finally {
+        clearTimeout(timeoutId);
+      }
     }
+
+    return res.status(lastStatus).json({ error: lastError });
   } catch (err) {
     console.error("My AI Gemini /api/chat error:", err);
     return res.status(500).json({ error: "Internal server error" });
