@@ -4,11 +4,12 @@ const GROQ_API_KEY =
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
 const ALLOWED_MODELS = [
-  "llama-3.1-8b-instant",
-  "llama-3.3-70b-versatile"
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b",
+  "qwen/qwen3.8-27b"
 ];
 
-const DEFAULT_AUTO_MODEL = "llama-3.1-8b-instant";
+const DEFAULT_AUTO_MODEL = "openai/gpt-oss-20b";
 
 const SHORT_CLEAR_SYSTEM_PROMPT =
   "أنت مساعد ذكي باسم My AI مطور من قبل NC Studio. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
