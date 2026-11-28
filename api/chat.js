@@ -80,66 +80,44 @@ function parseDataUrl(dataUrl) {
   return { mimeType: match[1], base64Data: match[2] };
 }
 
-// بناء step_list بدلاً من turn_list مع الإبقاء على آخر رسالتين فقط
-function buildStepList(messages, framesList) {
+// بناء input لـ Interactions API (نص أو مصفوفة نص + صور عند الإدخال المرئي)
+function buildInteractionInput(messages, framesList) {
   const rawList = Array.isArray(messages) ? messages : [];
   const filtered = rawList.filter(
     (m) => m && (m.role === "user" || m.role === "assistant") && String(m.content || "").trim()
   );
 
   const recentTwo = filtered.slice(-2);
-  const stepList = [];
+  const lastUserMsg = [...recentTwo].reverse().find((m) => m.role === "user");
+  const promptText =
+    typeof lastUserMsg?.content === "string" && lastUserMsg.content.trim()
+      ? lastUserMsg.content.trim().slice(0, 1500)
+      : "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار.";
 
-  if (recentTwo.length === 0) {
-    stepList.push({
-      type: "text",
-      role: "user",
-      text: "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار."
-    });
+  if (framesList.length > 0) {
+    const items = [{ type: "text", text: promptText }];
     for (const frame of framesList) {
       const parsed = parseDataUrl(frame);
       if (parsed) {
-        stepList.push({
+        items.push({
           type: "image",
-          role: "user",
           data: parsed.base64Data,
           mime_type: parsed.mimeType
         });
       }
     }
-    return stepList;
+    return items;
   }
 
-  recentTwo.forEach((m, idx) => {
-    const isLastMessage = idx === recentTwo.length - 1;
-    const role = m.role === "assistant" ? "model" : "user";
-    const textContent =
-      typeof m.content === "string"
-        ? m.content.trim().slice(0, 1000)
-        : String(m.content || "").trim().slice(0, 1000);
+  // تضمين آخر رسالة سابقة كسياق مختصر إذا وُجدت
+  const prevMsg = recentTwo.length > 1 ? recentTwo[0] : null;
+  if (prevMsg) {
+    const prevRole = prevMsg.role === "assistant" ? "المساعد" : "المستخدم";
+    const prevText = String(prevMsg.content || "").trim().slice(0, 500);
+    return `السياق السابق (${prevRole}): ${prevText}\n\nالطلب الحالي: ${promptText}`;
+  }
 
-    stepList.push({
-      type: "text",
-      role,
-      text: textContent
-    });
-
-    if (isLastMessage && role === "user" && framesList.length > 0) {
-      for (const frame of framesList) {
-        const parsed = parseDataUrl(frame);
-        if (parsed) {
-          stepList.push({
-            type: "image",
-            role: "user",
-            data: parsed.base64Data,
-            mime_type: parsed.mimeType
-          });
-        }
-      }
-    }
-  });
-
-  return stepList;
+  return promptText;
 }
 
 function extractInteractionText(data) {
@@ -182,7 +160,7 @@ export default async function handler(req, res) {
 
     const hasVisualInput = Boolean(hasImage && framesList.length > 0);
     const candidateModels = resolveModelList(model);
-    const stepList = buildStepList(messages, hasVisualInput ? framesList : []);
+    const input = buildInteractionInput(messages, hasVisualInput ? framesList : []);
 
     let lastErrorData = { error: "الضغط مرتفع حالياً على Gemini، يرجى المحاولة بعد قليل." };
     let lastStatus = 502;
@@ -204,7 +182,7 @@ export default async function handler(req, res) {
             body: JSON.stringify({
               model: `models/${gemModel}`,
               system_instruction: activeSystemPrompt,
-              step_list: stepList,
+              input,
               generation_config: {
                 temperature: 0.4,
                 max_output_tokens: 2048
