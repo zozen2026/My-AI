@@ -3,8 +3,7 @@ const GEMINI_API_KEY =
 
 const ALLOWED_MODELS = [
   "gemini-3.8-flash",
-  "gemini-3.1-pro-preview",
-  "gemini-2.5-flash"
+  "gemini-3.1-pro-preview"
 ];
 
 const DEFAULT_AUTO_MODEL = "gemini-3.8-flash";
@@ -15,13 +14,6 @@ const SHORT_CLEAR_SYSTEM_PROMPT =
   "إذا كانت الإجابة طويلة أو تتضمن عدة نقاط أو محاور، افصل بين النقاط أو المحاور الرئيسية بالسطر الفاصل التالي مع ترك سطر فارغ قبله وسطر فارغ بعده:\n\n" +
   "________________________\n\n" +
   "احرص دائماً على إنهاء جملك ونقاطك بشكل كامل وغير مقطوع.";
-
-const MAX_RETRIES = 1;
-const RETRY_DELAYS_MS = [350, 800];
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function buildSystemPrompt(userName) {
   const cleanName = typeof userName === "string" ? userName.trim().slice(0, 40) : "";
@@ -80,7 +72,6 @@ function parseDataUrl(dataUrl) {
   return { mimeType: match[1], base64Data: match[2] };
 }
 
-// بناء input لـ Interactions API (نص أو مصفوفة نص + صور عند الإدخال المرئي)
 function buildInteractionInput(messages, framesList) {
   const rawList = Array.isArray(messages) ? messages : [];
   const filtered = rawList.filter(
@@ -161,90 +152,61 @@ export default async function handler(req, res) {
     const candidateModels = resolveModelList(model);
     const input = buildInteractionInput(messages, hasVisualInput ? framesList : []);
 
-    let lastErrorData = { error: "الضغط مرتفع حالياً على Gemini، يرجى المحاولة بعد قليل." };
+    let lastErrorData = { error: "تعذر الحصول على رد من Gemini، حاول مرة أخرى." };
     let lastStatus = 502;
 
     for (const gemModel of candidateModels) {
-      for (let retry = 0; retry <= MAX_RETRIES; retry++) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
 
-        try {
-          const url = "https://generativelanguage.googleapis.com/v1beta/interactions";
-          const response = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-goog-api-key": GEMINI_API_KEY
-            },
-            signal: controller.signal,
-            body: JSON.stringify({
-              model: `models/${gemModel}`,
-              system_instruction: activeSystemPrompt,
-              input,
-              generation_config: {
-                temperature: 0.4,
-                max_output_tokens: 2048
-              }
-            })
-          });
+      try {
+        const url = "https://generativelanguage.googleapis.com/v1beta/interactions";
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: `models/${gemModel}`,
+            system_instruction: activeSystemPrompt,
+            input,
+            generation_config: {
+              temperature: 0.4,
+              max_output_tokens: 2048
+            }
+          })
+        });
 
-          const data = await response.json().catch(() => ({}));
-          const rawReplyText = extractInteractionText(data);
+        const data = await response.json().catch(() => ({}));
+        const rawReplyText = extractInteractionText(data);
 
-          if (response.ok && rawReplyText) {
-            const formattedContent = normalizeLongAnswerSeparators(rawReplyText);
-            return res.status(200).json({
-              choices: [
-                {
-                  message: {
-                    role: "assistant",
-                    content: formattedContent
-                  }
+        if (response.ok && rawReplyText) {
+          const formattedContent = normalizeLongAnswerSeparators(rawReplyText);
+          return res.status(200).json({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: formattedContent
                 }
-              ],
-              served_by_model: gemModel
-            });
-          }
-
-          lastStatus = response.status;
-          const apiMsg = data?.error?.message || "";
-          lastErrorData =
-            response.status === 429
-              ? { error: "تم تجاوز حد الطلبات المؤقت لـ Gemini، جاري التبديل لنموذج بديل..." }
-              : { error: apiMsg || "تعذر الحصول على رد من Gemini." };
-
-          const isModelError =
-            response.status === 404 ||
-            apiMsg.toLowerCase().includes("not found") ||
-            apiMsg.toLowerCase().includes("not supported");
-
-          if (isModelError) {
-            break;
-          }
-
-          const isTransient = response.status === 429 || response.status >= 500;
-          if (isTransient && retry < MAX_RETRIES) {
-            await sleep(RETRY_DELAYS_MS[retry] || 350);
-            continue;
-          }
-
-          if (isTransient) {
-            break;
-          }
-
-          return res.status(lastStatus).json(lastErrorData);
-        } catch (fetchErr) {
-          lastStatus = 502;
-          lastErrorData = { error: "حدث خلل مؤقت في الاتصال بخادم Gemini، يرجى المحاولة مرة أخرى." };
-          if (retry < MAX_RETRIES) {
-            await sleep(RETRY_DELAYS_MS[retry] || 350);
-            continue;
-          }
-          break;
-        } finally {
-          clearTimeout(timeoutId);
+              }
+            ],
+            served_by_model: gemModel
+          });
         }
+
+        lastStatus = response.status;
+        const apiMsg = data?.error?.message || "";
+        lastErrorData = {
+          error: apiMsg || "تعذر الحصول على رد من Gemini."
+        };
+      } catch (fetchErr) {
+        lastStatus = 504;
+        lastErrorData = { error: "انتهت مهلة الاتصال بخادم Gemini، يرجى المحاولة مرة أخرى." };
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
