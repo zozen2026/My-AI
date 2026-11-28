@@ -2,14 +2,14 @@ const GEMINI_API_KEY =
   typeof process.env.GEMINI_API_KEY === "string" ? process.env.GEMINI_API_KEY.trim() : "";
 
 const ALLOWED_MODELS = [
-  "gemini-4-argon",
   "gemini-4-hydrogen",
   "gemini-4-carbon",
   "gemini-4-neon",
+  "gemini-4-argon",
   "gemini-3.8-flash"
 ];
 
-const DEFAULT_AUTO_MODEL = "gemini-4-argon";
+const DEFAULT_AUTO_MODEL = "gemini-4-hydrogen";
 
 const SHORT_CLEAR_SYSTEM_PROMPT =
   "أنت مساعد ذكي باسم My AI مطور من قبل NC Studio. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
@@ -135,7 +135,7 @@ function isArabicText(text) {
 
 async function querySingleModel(gemModel, activeSystemPrompt, input, parentSignal) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 7500);
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
 
   const onAbort = () => controller.abort();
   if (parentSignal) {
