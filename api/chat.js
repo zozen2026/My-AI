@@ -3,8 +3,8 @@ const GEMINI_API_KEY =
 
 const ALLOWED_MODELS = [
   "gemini-3.8-flash",
-  "gemini-2.5-flash",
-  "gemini-2.5-pro"
+  "gemini-3.1-pro-preview",
+  "gemini-2.5-flash"
 ];
 
 const DEFAULT_AUTO_MODEL = "gemini-3.8-flash";
@@ -109,7 +109,6 @@ function buildInteractionInput(messages, framesList) {
     return items;
   }
 
-  // تضمين آخر رسالة سابقة كسياق مختصر إذا وُجدت
   const prevMsg = recentTwo.length > 1 ? recentTwo[0] : null;
   if (prevMsg) {
     const prevRole = prevMsg.role === "assistant" ? "المساعد" : "المستخدم";
