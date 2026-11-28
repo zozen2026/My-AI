@@ -1,14 +1,14 @@
-const GEMINI_API_KEY =
-  typeof process.env.GEMINI_API_KEY === "string" ? process.env.GEMINI_API_KEY.trim() : "";
+const GROQ_API_KEY =
+  typeof process.env.GROQ_API_KEY === "string" ? process.env.GROQ_API_KEY.trim() : "";
+
+const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
 const ALLOWED_MODELS = [
-  "gemini-3.8-flash",
-  "gemini-4-argon",
-  "gemini-4-hydrogen",
-  "gemini-4-carbon"
+  "llama-3.1-8b-instant",
+  "llama-3.3-70b-versatile"
 ];
 
-const DEFAULT_AUTO_MODEL = "gemini-3.8-flash";
+const DEFAULT_AUTO_MODEL = "llama-3.1-8b-instant";
 
 const SHORT_CLEAR_SYSTEM_PROMPT =
   "أنت مساعد ذكي باسم My AI مطور من قبل NC Studio. أجب بنفس لغة المستخدم بوضوح واختصار شديد. " +
@@ -60,7 +60,7 @@ function resolveModelList(requestedModel) {
     return [DEFAULT_AUTO_MODEL, ...ALLOWED_MODELS.filter((m) => m !== DEFAULT_AUTO_MODEL)];
   }
 
-  const clean = requestedModel.trim().replace(/^models\//, "");
+  const clean = requestedModel.trim();
   if (ALLOWED_MODELS.includes(clean)) {
     return [clean, ...ALLOWED_MODELS.filter((m) => m !== clean)];
   }
@@ -68,64 +68,23 @@ function resolveModelList(requestedModel) {
   return [DEFAULT_AUTO_MODEL, ...ALLOWED_MODELS.filter((m) => m !== DEFAULT_AUTO_MODEL)];
 }
 
-function parseDataUrl(dataUrl) {
-  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(String(dataUrl || ""));
-  if (!match) return null;
-  return { mimeType: match[1], base64Data: match[2] };
-}
-
-function buildInteractionInput(messages, framesList) {
+function buildGroqMessages(messages, activeSystemPrompt) {
   const rawList = Array.isArray(messages) ? messages : [];
-  const filtered = rawList.filter(
-    (m) => m && (m.role === "user" || m.role === "assistant") && String(m.content || "").trim()
-  );
+  const filtered = rawList
+    .filter(
+      (m) =>
+        m &&
+        (m.role === "user" || m.role === "assistant") &&
+        typeof m.content === "string" &&
+        m.content.trim()
+    )
+    .slice(-6)
+    .map((m) => ({
+      role: m.role,
+      content: m.content.trim().slice(0, 2000)
+    }));
 
-  const recentTwo = filtered.slice(-2);
-  const lastUserMsg = [...recentTwo].reverse().find((m) => m.role === "user");
-  const promptText =
-    typeof lastUserMsg?.content === "string" && lastUserMsg.content.trim()
-      ? lastUserMsg.content.trim().slice(0, 1500)
-      : "لخّص واشرح هذا المحتوى المرئي بوضوح واختصار.";
-
-  if (framesList.length > 0) {
-    const items = [{ type: "text", text: promptText }];
-    for (const frame of framesList) {
-      const parsed = parseDataUrl(frame);
-      if (parsed) {
-        items.push({
-          type: "image",
-          data: parsed.base64Data,
-          mime_type: parsed.mimeType
-        });
-      }
-    }
-    return items;
-  }
-
-  const prevMsg = recentTwo.length > 1 ? recentTwo[0] : null;
-  if (prevMsg) {
-    const prevRole = prevMsg.role === "assistant" ? "المساعد" : "المستخدم";
-    const prevText = String(prevMsg.content || "").trim().slice(0, 500);
-    return `السياق السابق (${prevRole}): ${prevText}\n\nالطلب الحالي: ${promptText}`;
-  }
-
-  return promptText;
-}
-
-function extractInteractionText(data) {
-  if (!data || typeof data !== "object") return "";
-  const outputs = Array.isArray(data.outputs) ? data.outputs : [];
-  const texts = [];
-  for (const item of outputs) {
-    if (item && item.type === "text" && typeof item.text === "string") {
-      texts.push(item.text);
-    } else if (typeof item?.text === "string") {
-      texts.push(item.text);
-    }
-  }
-  if (texts.length > 0) return texts.join("").trim();
-  if (typeof data.output_text === "string") return data.output_text.trim();
-  return "";
+  return [{ role: "system", content: activeSystemPrompt }, ...filtered];
 }
 
 function isArabicText(text) {
@@ -137,26 +96,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  if (!GEMINI_API_KEY) {
+  if (!GROQ_API_KEY) {
     return res.status(500).json({
-      error: "مفتاح GEMINI_API_KEY غير مضبوط في إعدادات الخادم (Vercel)."
+      error: "مفتاح GROQ_API_KEY غير مضبوط في إعدادات الخادم (Vercel)."
     });
   }
 
   try {
-    const { messages, model, userName, hasImage, imageBase64, videoFrames } = req.body || {};
+    const { messages, model, userName } = req.body || {};
     const activeSystemPrompt = buildSystemPrompt(userName);
-
-    const framesList =
-      Array.isArray(videoFrames) && videoFrames.length
-        ? videoFrames.slice(0, 2)
-        : imageBase64
-        ? [imageBase64]
-        : [];
-
-    const hasVisualInput = Boolean(hasImage && framesList.length > 0);
     const candidateModels = resolveModelList(model);
-    const input = buildInteractionInput(messages, hasVisualInput ? framesList : []);
+    const groqMessages = buildGroqMessages(messages, activeSystemPrompt);
 
     const lastUserText =
       [...(Array.isArray(messages) ? messages : [])]
@@ -165,36 +115,35 @@ export default async function handler(req, res) {
     const ar = isArabicText(lastUserText);
 
     let lastStatus = 503;
-    const fallbackError = ar
-      ? "النماذج مضغوطة مؤقتاً الآن، جرّب الإرسال بعد لحظات."
-      : "Models are temporarily busy right now. Please try again in a moment.";
+    let lastError = ar
+      ? "تعذر الحصول على رد من Groq الآن، جرّب الإرسال بعد لحظات."
+      : "Unable to get a response from Groq right now. Please try again.";
 
-    for (const gemModel of candidateModels) {
+    for (const groqModel of candidateModels) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 9000);
 
       try {
-        const url = "https://generativelanguage.googleapis.com/v1beta/interactions";
-        const response = await fetch(url, {
+        const response = await fetch(GROQ_ENDPOINT, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-goog-api-key": GEMINI_API_KEY
+            Authorization: `Bearer ${GROQ_API_KEY}`
           },
           signal: controller.signal,
           body: JSON.stringify({
-            model: `models/${gemModel}`,
-            system_instruction: activeSystemPrompt,
-            input,
-            generation_config: {
-              temperature: 0.4,
-              max_output_tokens: 2048
-            }
+            model: groqModel,
+            messages: groqMessages,
+            temperature: 0.4,
+            max_tokens: 2048
           })
         });
 
         const data = await response.json().catch(() => ({}));
-        const rawReplyText = extractInteractionText(data);
+        const rawReplyText =
+          typeof data?.choices?.[0]?.message?.content === "string"
+            ? data.choices[0].message.content.trim()
+            : "";
 
         if (response.ok && rawReplyText) {
           return res.status(200).json({
@@ -206,21 +155,27 @@ export default async function handler(req, res) {
                 }
               }
             ],
-            served_by_model: gemModel
+            served_by_model: groqModel
           });
         }
 
         lastStatus = response.status || 503;
+        if (data?.error?.message) {
+          lastError = data.error.message;
+        }
       } catch {
         lastStatus = 504;
+        lastError = ar
+          ? "انتهت مهلة الاتصال بخادم Groq، جرّب مرة أخرى."
+          : "Connection to Groq timed out. Please try again.";
       } finally {
         clearTimeout(timeoutId);
       }
     }
 
-    return res.status(lastStatus).json({ error: fallbackError });
+    return res.status(lastStatus).json({ error: lastError });
   } catch (err) {
-    console.error("My AI Gemini /api/chat error:", err);
+    console.error("My AI Groq /api/chat error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
